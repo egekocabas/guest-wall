@@ -20,12 +20,20 @@ ENHANCED = PNG + b"enhanced-thermal-preview"
 class MockPrinter:
     def __init__(self) -> None:
         self.preview_inputs: list[bytes] = []
+        self.preview_captions: list[tuple[str | None, str | None]] = []
         self.print_inputs: list[bytes] = []
         self.fail_print = False
         self.ambiguous_print = False
 
-    async def preview(self, image: bytes, content_type: str) -> PreparedImages:
+    async def preview(
+        self,
+        image: bytes,
+        content_type: str,
+        date: str | None = None,
+        time: str | None = None,
+    ) -> PreparedImages:
         self.preview_inputs.append(image)
+        self.preview_captions.append((date, time))
         return PreparedImages(exact_print=EXACT, enhanced_preview=ENHANCED)
 
     async def print_prepared(self, image: bytes) -> None:

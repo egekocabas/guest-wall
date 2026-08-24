@@ -52,6 +52,7 @@ describe("Guestwall", () => {
       screen.getByLabelText("Choose from library"),
       new File(["photo"], "photo.jpg", { type: "image/jpeg" }),
     );
+    await user.click(screen.getByRole("button", { name: "Create preview" }));
     expect(await screen.findByAltText("Your thermal print preview")).toHaveAttribute(
       "src",
       "/preview.png",
@@ -64,5 +65,43 @@ describe("Guestwall", () => {
         expect.objectContaining({ method: "POST" }),
       ),
     );
+  });
+
+  it("adds the current date and time to the preview when selected", async () => {
+    let previewForm: FormData | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/printer/status") return new Response(JSON.stringify({ online: true }));
+      if (url.startsWith("/api/photos?"))
+        return new Response(JSON.stringify({ items: [], next_offset: null }));
+      if (url === "/api/previews") {
+        previewForm = init?.body as FormData;
+        return new Response(
+          JSON.stringify({
+            preview_id: "preview-2",
+            preview_url: "/preview-with-date.png",
+            expires_at: "2026-08-24T18:34:00",
+          }),
+          { status: 201 },
+        );
+      }
+      return new Response(null, { status: 204 });
+    });
+
+    const user = userEvent.setup();
+    render(<App modeOverride="lan" />);
+    await user.upload(
+      screen.getByLabelText("Choose from library"),
+      new File(["photo"], "photo.jpg", { type: "image/jpeg" }),
+    );
+    await user.click(screen.getByRole("radio", { name: /Date & time/ }));
+    await user.click(screen.getByRole("button", { name: "Create preview" }));
+
+    expect(await screen.findByAltText("Your thermal print preview")).toHaveAttribute(
+      "src",
+      "/preview-with-date.png",
+    );
+    expect(previewForm?.get("date")).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+    expect(previewForm?.get("time")).toMatch(/^\d{2}:\d{2}$/);
   });
 });

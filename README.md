@@ -25,7 +25,7 @@ The single container builds the Vite application and serves it from FastAPI. SQL
 
 ### Preview and print state
 
-`POST /api/previews` keeps the bounded original in request-scoped multipart storage (memory, with larger files spooled only to the pod's ephemeral `/tmp`), sends it to `printer-agent`, and writes only the two returned PNGs under `/data/previews/<uuid>/`. The original is never written to `/data`; request cleanup removes any spool file, and Kubernetes mounts `/tmp` as a size-limited `emptyDir`. Preview rows expire after one hour by default; startup, opportunistic access, and a small in-process cleanup loop remove abandoned previews.
+`POST /api/previews` keeps the bounded original in request-scoped multipart storage (memory, with larger files spooled only to the pod's ephemeral `/tmp`), sends it to `printer-agent`, and writes only the two returned PNGs under `/data/previews/<uuid>/`. Guests can optionally add their browser's current date or date and time as a caption; Guestwall forwards those fields while preparing the image, so the caption is part of both returned PNGs. The original is never written to `/data`; request cleanup removes any spool file, and Kubernetes mounts `/tmp` as a size-limited `emptyDir`. Preview rows expire after one hour by default; startup, opportunistic access, and a small in-process cleanup loop remove abandoned previews.
 
 Confirmation atomically claims `ready`/`failed` as `printing`. Only one request can print it. A successful printer response promotes the directory to `/data/photos/<uuid>/` and creates a permanent `Photo`. Repeating the confirmation returns the existing photo without printing again. A definite failure may be retried. A timeout or other ambiguous transport failure becomes `uncertain` and is deliberately not retryable, because the printer may already have printed after the response was lost. This conservative edge case requires the host to inspect the printer.
 
@@ -192,6 +192,5 @@ Gallery viewing continues when the printer-agent or printer is offline. No faile
 
 - One replica and one persistent volume only.
 - No guest accounts, comments, likes, moderation, cloud object storage, or direct printer control.
-- Date/time captions are left to future printer-agent integration; no client time is sent in v1.
 - Ambiguous print timeouts intentionally require host judgment instead of risking an automatic duplicate.
 - Infrastructure Basic Auth is not present in local development; it is exclusively a Traefik concern.

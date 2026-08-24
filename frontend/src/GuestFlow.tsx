@@ -6,12 +6,17 @@ interface GuestFlowProps {
   onAdded: () => void;
 }
 
+type CaptionMode = "none" | "date" | "datetime";
+
 export function GuestFlow({ onAdded }: GuestFlowProps) {
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedAt, setSelectedAt] = useState<Date | null>(null);
+  const [captionMode, setCaptionMode] = useState<CaptionMode>("none");
   const [visibility, setVisibility] = useState<Visibility>("public");
-  const [phase, setPhase] = useState<"choose" | "preparing" | "preview" | "printing" | "done">(
-    "choose",
-  );
+  const [phase, setPhase] = useState<
+    "choose" | "customize" | "preparing" | "preview" | "printing" | "done"
+  >("choose");
   const [error, setError] = useState("");
   const [printerOnline, setPrinterOnline] = useState<boolean | null>(null);
   const activePreview = useRef<string | null>(null);
@@ -31,12 +36,22 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
     [],
   );
 
-  async function choose(file?: File) {
+  function choose(file?: File) {
     if (!file) return;
+    setError("");
+    setSelectedFile(file);
+    setSelectedAt(new Date());
+    setCaptionMode("none");
+    setPhase("customize");
+  }
+
+  async function preparePreview() {
+    if (!selectedFile || !selectedAt) return;
     setError("");
     setPhase("preparing");
     try {
-      const created = await api.createPreview(file);
+      const caption = formatCaption(selectedAt, captionMode);
+      const created = await api.createPreview(selectedFile, caption.date, caption.time);
       activePreview.current = created.preview_id;
       setPreview(created);
       setPhase("preview");
@@ -74,6 +89,9 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
       await api.deletePreview(activePreview.current).catch(() => undefined);
     activePreview.current = null;
     setPreview(null);
+    setSelectedFile(null);
+    setSelectedAt(null);
+    setCaptionMode("none");
     setError("");
     setPhase("choose");
   }
@@ -84,7 +102,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
       aria-labelledby="contribute-title"
     >
       <div className="paper-card overflow-hidden p-5 sm:p-8">
-        {phase === "choose" || phase === "preparing" ? (
+        {phase === "choose" ? (
           <div className="text-center">
             <p className="mb-3 font-mono text-[0.65rem] uppercase tracking-[0.26em] text-ink/50">
               Print a moment
@@ -118,8 +136,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
                   type="file"
                   accept="image/*"
                   capture="environment"
-                  disabled={phase === "preparing"}
-                  onChange={(event) => void choose(event.target.files?.[0])}
+                  onChange={(event) => choose(event.target.files?.[0])}
                 />
               </label>
               <label className="secondary-button cursor-pointer">
@@ -129,16 +146,65 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
                   className="sr-only"
                   type="file"
                   accept="image/*"
-                  disabled={phase === "preparing"}
-                  onChange={(event) => void choose(event.target.files?.[0])}
+                  onChange={(event) => choose(event.target.files?.[0])}
                 />
               </label>
             </div>
-            {phase === "preparing" ? (
-              <p className="mt-5 animate-pulse font-mono text-xs uppercase tracking-widest">
-                Preparing your print…
-              </p>
-            ) : null}
+          </div>
+        ) : null}
+
+        {(phase === "customize" || phase === "preparing") && selectedAt ? (
+          <div>
+            <p className="font-mono text-[0.65rem] uppercase tracking-[0.26em] text-ink/50">
+              Photo selected
+            </p>
+            <h1
+              id="contribute-title"
+              className="mt-2 font-display text-3xl font-black tracking-tight sm:text-4xl"
+            >
+              Add a timestamp?
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-ink/60">
+              This is optional. It will appear below the photo in the preview and on paper.
+            </p>
+            <fieldset className="mt-5" disabled={phase === "preparing"}>
+              <legend className="sr-only">Timestamp on print</legend>
+              <CaptionChoice
+                mode="none"
+                selected={captionMode}
+                label="No date"
+                detail="Print only the photo"
+                onSelect={setCaptionMode}
+              />
+              <CaptionChoice
+                mode="date"
+                selected={captionMode}
+                label="Date"
+                detail={formatCaption(selectedAt, "date").date ?? ""}
+                onSelect={setCaptionMode}
+              />
+              <CaptionChoice
+                mode="datetime"
+                selected={captionMode}
+                label="Date & time"
+                detail={`${formatCaption(selectedAt, "datetime").date} ${formatCaption(selectedAt, "datetime").time}`}
+                onSelect={setCaptionMode}
+              />
+            </fieldset>
+            <button
+              className="primary-button mt-5 w-full"
+              disabled={phase === "preparing"}
+              onClick={() => void preparePreview()}
+            >
+              {phase === "preparing" ? "Preparing your print…" : "Create preview"}
+            </button>
+            <button
+              className="mt-4 w-full text-sm text-ink/55 underline underline-offset-4"
+              disabled={phase === "preparing"}
+              onClick={() => void reset()}
+            >
+              Choose a different photo
+            </button>
           </div>
         ) : null}
 
@@ -221,6 +287,44 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
       </div>
     </section>
   );
+}
+
+function CaptionChoice({
+  mode,
+  selected,
+  label,
+  detail,
+  onSelect,
+}: {
+  mode: CaptionMode;
+  selected: CaptionMode;
+  label: string;
+  detail: string;
+  onSelect: (mode: CaptionMode) => void;
+}) {
+  return (
+    <label className={`choice ${selected === mode ? "choice-selected" : ""}`}>
+      <input
+        type="radio"
+        name="caption"
+        value={mode}
+        checked={selected === mode}
+        onChange={() => onSelect(mode)}
+      />
+      <span>
+        <strong>{label}</strong>
+        <small>{detail}</small>
+      </span>
+    </label>
+  );
+}
+
+function formatCaption(value: Date, mode: CaptionMode): { date?: string; time?: string } {
+  if (mode === "none") return {};
+  const pad = (part: number) => String(part).padStart(2, "0");
+  const date = `${pad(value.getDate())}/${pad(value.getMonth() + 1)}/${value.getFullYear()}`;
+  if (mode === "date") return { date };
+  return { date, time: `${pad(value.getHours())}:${pad(value.getMinutes())}` };
 }
 
 function CameraIcon() {

@@ -38,6 +38,27 @@ def test_preview_keeps_only_prepared_outputs(
     )
 
 
+def test_preview_forwards_optional_caption(client: TestClient, printer: MockPrinter) -> None:
+    response = client.post(
+        "/api/previews",
+        files={"image": ("phone.jpg", b"original", "image/jpeg")},
+        data={"date": "24/08/2026", "time": "18:34"},
+    )
+    assert response.status_code == 201
+    assert printer.preview_captions == [("24/08/2026", "18:34")]
+
+
+def test_preview_rejects_invalid_caption(client: TestClient, printer: MockPrinter) -> None:
+    response = client.post(
+        "/api/previews",
+        files={"image": ("phone.jpg", b"original", "image/jpeg")},
+        data={"date": "31/02/2026"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "invalid_caption_date"
+    assert printer.preview_inputs == []
+
+
 def test_confirmation_prints_exact_raster_and_is_idempotent(
     client: TestClient, create_preview, printer: MockPrinter, data_dir: Path
 ) -> None:
