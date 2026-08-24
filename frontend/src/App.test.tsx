@@ -38,17 +38,18 @@ describe("Guestwall", () => {
             image_url: `/page-photo-${index}.png`,
           })),
           next_offset: offset === "12" ? null : 12,
+          total: 13,
         }),
       );
     });
 
     const user = userEvent.setup();
     const { container } = render(<App modeOverride="public" />);
-    expect(await screen.findByText("12 shown")).toBeInTheDocument();
+    expect(await screen.findByText("12 shown / 13 total")).toBeInTheDocument();
     expect(screen.getByText("Page 1")).toHaveAttribute("aria-current", "page");
 
     await user.click(screen.getByRole("button", { name: "Next" }));
-    expect(await screen.findByText("1 shown")).toBeInTheDocument();
+    expect(await screen.findByText("1 shown / 13 total")).toBeInTheDocument();
     expect(screen.getByText("Page 2")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "A thermal Guestwall memory" })).toHaveAttribute(
       "src",
@@ -58,7 +59,7 @@ describe("Guestwall", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/public/photos?offset=12&limit=12", undefined);
 
     await user.click(screen.getByRole("button", { name: "Previous" }));
-    expect(await screen.findByText("12 shown")).toBeInTheDocument();
+    expect(await screen.findByText("12 shown / 13 total")).toBeInTheDocument();
     expect(screen.getByText("Page 1")).toBeInTheDocument();
   });
 

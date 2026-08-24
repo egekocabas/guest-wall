@@ -35,7 +35,8 @@ Admin reprints require an `Idempotency-Key`; repeating the same key never produc
 
 Gallery queries use stable newest-first ordering and return 12 photos at a time. Previous/Next
 navigation replaces the current page instead of appending to it, keeping image transfer and browser
-DOM size bounded as the wall grows.
+DOM size bounded as the wall grows. Each page response includes the filtered total so the wall can
+show both the number currently visible and the collection size.
 
 ## LAN, public, and admin boundaries
 

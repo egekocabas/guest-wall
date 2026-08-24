@@ -119,10 +119,14 @@ def test_public_boundary_does_not_list_or_serve_private_photo(
     public_id = create_preview()
     assert confirm(client, public_id, "public").status_code == 200
 
-    lan = client.get("/api/photos").json()["items"]
-    public = client.get("/api/public/photos").json()["items"]
+    lan_page = client.get("/api/photos").json()
+    public_page = client.get("/api/public/photos").json()
+    lan = lan_page["items"]
+    public = public_page["items"]
     assert {item["id"] for item in lan} == {private_id, public_id}
     assert [item["id"] for item in public] == [public_id]
+    assert lan_page["total"] == 2
+    assert public_page["total"] == 1
     assert client.get(f"/api/public/photos/{private_id}/image").status_code == 404
     assert client.get(f"/api/public/photos/{public_id}/image").content == ENHANCED
 
@@ -145,8 +149,10 @@ def test_wall_paginates_newest_photos_first(client: TestClient, create_preview) 
 
     assert [photo["id"] for photo in first_page["items"]] == photo_ids[::-1][:2]
     assert first_page["next_offset"] == 2
+    assert first_page["total"] == 3
     assert [photo["id"] for photo in second_page["items"]] == [photo_ids[0]]
     assert second_page["next_offset"] is None
+    assert second_page["total"] == 3
 
 
 def test_public_host_rejects_lan_and_admin_routes(client: TestClient) -> None:

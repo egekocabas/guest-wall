@@ -266,18 +266,21 @@ class GuestwallService:
         public_only: bool,
         offset: int,
         limit: int,
-    ) -> tuple[list[Photo], int | None]:
+    ) -> tuple[list[Photo], int | None, int]:
         statement = (
             select(Photo)
             .order_by(Photo.created_at.desc(), Photo.id.desc())
             .offset(offset)
             .limit(limit + 1)
         )
+        count_statement = select(func.count()).select_from(Photo)
         if public_only:
             statement = statement.where(Photo.visibility == Visibility.PUBLIC.value)
+            count_statement = count_statement.where(Photo.visibility == Visibility.PUBLIC.value)
+        total = session.scalar(count_statement) or 0
         photos = list(session.scalars(statement))
         has_more = len(photos) > limit
-        return photos[:limit], offset + limit if has_more else None
+        return photos[:limit], offset + limit if has_more else None, total
 
     def get_photo(self, session: Session, photo_id: str, *, public_only: bool) -> Photo:
         photo = session.get(Photo, photo_id)

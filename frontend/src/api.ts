@@ -11,6 +11,7 @@ export interface Photo {
 export interface PhotoPage {
   items: Photo[];
   next_offset: number | null;
+  total: number;
 }
 
 export interface Preview {

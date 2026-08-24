@@ -118,12 +118,13 @@ def list_lan_photos(
     session: Session = Depends(get_session),
     service: GuestwallService = Depends(get_service),
 ) -> PhotoPage:
-    photos, next_offset = service.list_photos(
+    photos, next_offset, total = service.list_photos(
         session, public_only=False, offset=offset, limit=limit
     )
     return PhotoPage(
         items=[photo_view(photo, "/api/photos") for photo in photos],
         next_offset=next_offset,
+        total=total,
     )
 
 
@@ -148,10 +149,13 @@ def list_public_photos(
     session: Session = Depends(get_session),
     service: GuestwallService = Depends(get_service),
 ) -> PhotoPage:
-    photos, next_offset = service.list_photos(session, public_only=True, offset=offset, limit=limit)
+    photos, next_offset, total = service.list_photos(
+        session, public_only=True, offset=offset, limit=limit
+    )
     return PhotoPage(
         items=[photo_view(photo, "/api/public/photos") for photo in photos],
         next_offset=next_offset,
+        total=total,
     )
 
 
@@ -181,12 +185,13 @@ def admin_photos(
     session: Session = Depends(get_session),
     service: GuestwallService = Depends(get_service),
 ) -> PhotoPage:
-    photos, next_offset = service.list_photos(
+    photos, next_offset, total = service.list_photos(
         session, public_only=False, offset=offset, limit=limit
     )
     return PhotoPage(
         items=[photo_view(photo, "/api/photos") for photo in photos],
         next_offset=next_offset,
+        total=total,
     )
 
 

@@ -13,6 +13,7 @@ const PHOTO_PAGE_SIZE = 12;
 export function Gallery({ publicOnly = false, refreshToken = 0 }: GalleryProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +26,7 @@ export function Gallery({ publicOnly = false, refreshToken = 0 }: GalleryProps) 
       try {
         const page = await api.listPhotos(publicOnly, requestedOffset, PHOTO_PAGE_SIZE);
         setPhotos(page.items);
+        setTotal(page.total ?? page.items.length);
         setOffset(requestedOffset);
         setNextOffset(page.next_offset);
       } catch {
@@ -62,7 +64,7 @@ export function Gallery({ publicOnly = false, refreshToken = 0 }: GalleryProps) 
           </h2>
         </div>
         <span className="shrink-0 pb-1 font-mono text-[0.7rem] text-ink/50 sm:text-xs">
-          {photos.length} shown
+          {photos.length} shown / {total} total
         </span>
       </div>
 

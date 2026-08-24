@@ -29,6 +29,7 @@ class PhotoView(BaseModel):
 class PhotoPage(BaseModel):
     items: list[PhotoView]
     next_offset: int | None
+    total: int
 
 
 class VisibilityUpdate(BaseModel):
