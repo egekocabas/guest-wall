@@ -11,10 +11,16 @@ from guestwall.models import Photo, PreviewSession, utcnow
 from .conftest import ENHANCED, EXACT, MockPrinter
 
 
-def confirm(client: TestClient, preview_id: str, visibility: str = "public"):
+def confirm(
+    client: TestClient,
+    preview_id: str,
+    visibility: str = "public",
+    *,
+    print_photo: bool = True,
+):
     return client.post(
         f"/api/previews/{preview_id}/confirm",
-        json={"visibility": visibility},
+        json={"visibility": visibility, "print": print_photo},
     )
 
 
@@ -72,6 +78,37 @@ def test_confirmation_prints_exact_raster_and_is_idempotent(
     assert (data_dir / "photos" / preview_id / "preview.png").read_bytes() == ENHANCED
     assert (data_dir / "photos" / preview_id / "print.png").read_bytes() == EXACT
     assert not (data_dir / "previews" / preview_id).exists()
+
+
+def test_wall_only_confirmation_skips_printer_and_is_idempotent(
+    client: TestClient, create_preview, printer: MockPrinter, data_dir: Path
+) -> None:
+    preview_id = create_preview()
+    first = confirm(client, preview_id, print_photo=False)
+    second = confirm(client, preview_id, print_photo=False)
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["print_status"] == "not_printed"
+    assert second.headers["idempotency-replayed"] == "true"
+    assert printer.print_inputs == []
+    assert (data_dir / "photos" / preview_id / "preview.png").read_bytes() == ENHANCED
+    assert (data_dir / "photos" / preview_id / "print.png").read_bytes() == EXACT
+    with client.app.state.database.sessions() as session:
+        photo = session.get(Photo, preview_id)
+        assert photo is not None
+        assert photo.printed_at is None
+
+    response = client.post(
+        f"/api/admin/photos/{preview_id}/reprint",
+        headers={"Idempotency-Key": "first-print-after-wall-only"},
+    )
+    assert response.status_code == 204
+    assert printer.print_inputs == [EXACT]
+    with client.app.state.database.sessions() as session:
+        photo = session.get(Photo, preview_id)
+        assert photo is not None
+        assert photo.print_status == "printed"
+        assert photo.printed_at is not None
 
 
 def test_public_boundary_does_not_list_or_serve_private_photo(

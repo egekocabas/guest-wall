@@ -60,13 +60,64 @@ describe("Guestwall", () => {
       "src",
       "/preview.png",
     );
-    await user.click(screen.getByRole("button", { name: "Print & add to wall" }));
+    await user.click(screen.getByRole("button", { name: "Print & Add to The Wall" }));
     expect(await screen.findByText("Printed!")).toBeInTheDocument();
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/previews/preview-1/confirm",
-        expect.objectContaining({ method: "POST" }),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ visibility: "public", print: true }),
+        }),
       ),
+    );
+  });
+
+  it("adds a photo to the wall without printing", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/printer/status") return new Response(JSON.stringify({ online: false }));
+      if (url.startsWith("/api/photos?"))
+        return new Response(JSON.stringify({ items: [], next_offset: null }));
+      if (url === "/api/previews")
+        return new Response(
+          JSON.stringify({
+            preview_id: "wall-only",
+            preview_url: "/preview.png",
+            expires_at: "2026-01-01T00:00:00",
+          }),
+          { status: 201 },
+        );
+      if (url === "/api/previews/wall-only/confirm" && init?.method === "POST")
+        return new Response(
+          JSON.stringify({
+            id: "wall-only",
+            created_at: "2026-01-01T00:00:00",
+            visibility: "public",
+            print_status: "not_printed",
+            image_url: "/photo.png",
+          }),
+        );
+      return new Response(null, { status: 204 });
+    });
+
+    const user = userEvent.setup();
+    render(<App modeOverride="lan" />);
+    await user.upload(
+      screen.getByLabelText("Choose from library"),
+      new File(["photo"], "photo.jpg", { type: "image/jpeg" }),
+    );
+    const addOnly = await screen.findByRole("button", { name: "Add to Wall Only" });
+    expect(addOnly).toHaveClass("secondary-button");
+    await user.click(addOnly);
+
+    expect(await screen.findByText("Added!")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/previews/wall-only/confirm",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ visibility: "public", print: false }),
+      }),
     );
   });
 
@@ -194,11 +245,64 @@ describe("Guestwall", () => {
     expect(drawImage).toHaveBeenCalledOnce();
     expect(revoke).toHaveBeenCalledWith("blob:photo");
 
-    await user.click(screen.getByRole("button", { name: "Use original direction" }));
+    await user.click(screen.getByRole("button", { name: "Mirror photo" }));
     expect(screen.getByAltText("Your thermal print preview")).toHaveAttribute(
       "src",
       "/original.png",
     );
     expect(uploadedNames).toHaveLength(2);
+  });
+
+  it("disables mirror and timestamp controls while a variant is preparing", async () => {
+    let resolveDatePreview: ((response: Response) => void) | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/printer/status") return new Response(JSON.stringify({ online: true }));
+      if (url.startsWith("/api/photos?"))
+        return new Response(JSON.stringify({ items: [], next_offset: null }));
+      if (url === "/api/previews") {
+        const form = init?.body as FormData;
+        if (form.has("date"))
+          return new Promise<Response>((resolve) => {
+            resolveDatePreview = resolve;
+          });
+        return new Response(
+          JSON.stringify({
+            preview_id: "basic",
+            preview_url: "/basic.png",
+            expires_at: "2026-08-24T18:34:00",
+          }),
+          { status: 201 },
+        );
+      }
+      return new Response(null, { status: 204 });
+    });
+
+    const user = userEvent.setup();
+    render(<App modeOverride="lan" />);
+    await user.upload(
+      screen.getByLabelText("Choose from library"),
+      new File(["photo"], "photo.jpg", { type: "image/jpeg" }),
+    );
+    const mirror = await screen.findByRole("button", { name: "Mirror photo" });
+    const date = screen.getByRole("radio", { name: /^Date\d/ });
+    await user.click(date);
+
+    expect(mirror).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "No date" })).toBeDisabled();
+    expect(date).toBeDisabled();
+
+    resolveDatePreview?.(
+      new Response(
+        JSON.stringify({
+          preview_id: "with-date",
+          preview_url: "/with-date.png",
+          expires_at: "2026-08-24T18:34:00",
+        }),
+        { status: 201 },
+      ),
+    );
+    await waitFor(() => expect(mirror).toBeEnabled());
+    expect(date).toBeEnabled();
   });
 });

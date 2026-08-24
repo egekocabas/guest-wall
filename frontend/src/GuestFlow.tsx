@@ -7,7 +7,8 @@ interface GuestFlowProps {
 }
 
 type CaptionMode = "none" | "date" | "datetime";
-type Phase = "choose" | "preview" | "printing" | "done";
+type Phase = "choose" | "preview" | "printing" | "adding" | "done";
+type Completion = "printed" | "added";
 
 interface PreviewSelection {
   captionMode: CaptionMode;
@@ -21,6 +22,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
   const [mirrored, setMirrored] = useState(false);
   const [visibility, setVisibility] = useState<Visibility>("public");
   const [phase, setPhase] = useState<Phase>("choose");
+  const [completion, setCompletion] = useState<Completion>("printed");
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState("");
   const [printerOnline, setPrinterOnline] = useState<boolean | null>(null);
@@ -136,12 +138,12 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
     return mirroredFile.current;
   }
 
-  async function print() {
+  async function submit(printPhoto: boolean) {
     if (!preview) return;
-    setPhase("printing");
+    setPhase(printPhoto ? "printing" : "adding");
     setError("");
     try {
-      await api.confirmPreview(preview.preview_id, visibility);
+      await api.confirmPreview(preview.preview_id, visibility, printPhoto);
       const retained = preview.preview_id;
       const variants = previewCache.current;
       previewCache.current = new Map();
@@ -149,13 +151,16 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
       selectedFileRef.current = null;
       mirroredFile.current = null;
       void discardPreviews(variants, retained);
+      setCompletion(printPhoto ? "printed" : "added");
       setPhase("done");
       onAdded();
     } catch (caught) {
       setError(
         caught instanceof ApiError
           ? caught.message
-          : "The printer is unavailable. Your photo has not been added yet.",
+          : printPhoto
+            ? "The printer is unavailable. Your photo has not been added yet."
+            : "Your photo could not be added to the wall.",
       );
       setPhase("preview");
     }
@@ -237,12 +242,9 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
           </div>
         ) : null}
 
-        {(phase === "preview" || phase === "printing") && preview ? (
+        {(phase === "preview" || phase === "printing" || phase === "adding") && preview ? (
           <div>
-            <p className="font-mono text-[0.65rem] uppercase tracking-[0.26em] text-ink/50">
-              This will be printed
-            </p>
-            <div className="relative mx-auto my-5 max-w-sm overflow-hidden bg-white p-3 pb-5 shadow-paper">
+            <div className="relative mx-auto mb-5 max-w-sm overflow-hidden bg-white p-3 pb-5 shadow-paper">
               <img
                 src={preview.preview_url}
                 alt="Your thermal print preview"
@@ -250,27 +252,24 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
               />
               {preparing ? <PreviewSpinner /> : null}
             </div>
-            <button
-              type="button"
-              className="secondary-button mx-auto"
-              aria-pressed={mirrored}
-              disabled={phase === "printing"}
-              onClick={() => void selectPreview({ captionMode, mirrored: !mirrored })}
-            >
-              <MirrorIcon /> {mirrored ? "Use original direction" : "Mirror photo"}
-            </button>
+            <div className="flex justify-center">
+              <button
+                type="button"
+                className="secondary-button"
+                aria-pressed={mirrored}
+                disabled={preparing || phase !== "preview"}
+                onClick={() => void selectPreview({ captionMode, mirrored: !mirrored })}
+              >
+                <MirrorIcon /> Mirror photo
+              </button>
+            </div>
             {selectedAt ? (
-              <fieldset className="mt-6" disabled={phase === "printing"}>
+              <fieldset className="mt-6" disabled={preparing || phase !== "preview"}>
                 <legend className="font-display text-xl font-bold">Add a timestamp?</legend>
-                <p className="mb-3 mt-1 text-sm leading-6 text-ink/60">
-                  Each option is prepared by the printer. Previously viewed options switch back
-                  instantly.
-                </p>
                 <CaptionChoice
                   mode="none"
                   selected={captionMode}
                   label="No date"
-                  detail="Print only the photo"
                   onSelect={(mode) => void selectPreview({ captionMode: mode, mirrored })}
                 />
                 <CaptionChoice
@@ -289,7 +288,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
                 />
               </fieldset>
             ) : null}
-            <fieldset className="mt-6">
+            <fieldset className="mt-6" disabled={phase !== "preview"}>
               <legend className="font-display text-xl font-bold">Who can see it?</legend>
               <label className={`choice ${visibility === "public" ? "choice-selected" : ""}`}>
                 <input
@@ -314,20 +313,27 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
                 />
                 <span>
                   <strong>Home only</strong>
-                  <small>Only visible to people on the home wall</small>
+                  <small>Only visible to people in the home network</small>
                 </span>
               </label>
             </fieldset>
             <button
               className="primary-button mt-5 w-full"
-              disabled={phase === "printing" || preparing}
-              onClick={() => void print()}
+              disabled={phase !== "preview" || preparing}
+              onClick={() => void submit(true)}
             >
-              {phase === "printing" ? "Printing…" : "Print & add to wall"}
+              {phase === "printing" ? "Printing…" : "Print & Add to The Wall"}
+            </button>
+            <button
+              className="secondary-button mt-3 w-full"
+              disabled={phase !== "preview" || preparing}
+              onClick={() => void submit(false)}
+            >
+              {phase === "adding" ? "Adding…" : "Add to Wall Only"}
             </button>
             <button
               className="quiet-action mt-2"
-              disabled={phase === "printing"}
+              disabled={phase !== "preview"}
               onClick={() => void reset()}
             >
               Choose a different photo
@@ -353,7 +359,9 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
             <div className="mx-auto mb-5 grid size-16 place-items-center rounded-full bg-ink text-3xl text-paper">
               ✓
             </div>
-            <h2 className="font-display text-4xl font-black">Printed!</h2>
+            <h2 className="font-display text-4xl font-black">
+              {completion === "printed" ? "Printed!" : "Added!"}
+            </h2>
             <p className="mt-2 text-ink/60">Your moment is now part of the Guestwall.</p>
             <button className="secondary-button mt-7" onClick={() => void reset()}>
               Add another photo
@@ -455,7 +463,7 @@ function CaptionChoice({
   mode: CaptionMode;
   selected: CaptionMode;
   label: string;
-  detail: string;
+  detail?: string;
   onSelect: (mode: CaptionMode) => void;
 }) {
   return (
@@ -469,7 +477,7 @@ function CaptionChoice({
       />
       <span>
         <strong>{label}</strong>
-        <small>{detail}</small>
+        {detail ? <small>{detail}</small> : null}
       </span>
     </label>
   );

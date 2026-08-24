@@ -63,11 +63,11 @@ export const api = {
     if (time) data.append("time", time);
     return request("/api/previews", { method: "POST", body: data });
   },
-  confirmPreview(previewId: string, visibility: Visibility): Promise<Photo> {
+  confirmPreview(previewId: string, visibility: Visibility, printPhoto = true): Promise<Photo> {
     return request(`/api/previews/${previewId}/confirm`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visibility }),
+      body: JSON.stringify({ visibility, print: printPhoto }),
     });
   },
   deletePreview(previewId: string): Promise<void> {

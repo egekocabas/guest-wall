@@ -101,7 +101,12 @@ async def confirm_preview(
     session: Session = Depends(get_session),
     service: GuestwallService = Depends(get_service),
 ) -> PhotoView:
-    photo, duplicate = await service.confirm(session, preview_id, body.visibility)
+    photo, duplicate = await service.confirm(
+        session,
+        preview_id,
+        body.visibility,
+        print_photo=body.print,
+    )
     response.headers["Idempotency-Replayed"] = "true" if duplicate else "false"
     return photo_view(photo, "/api/photos")
 

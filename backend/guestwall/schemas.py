@@ -13,6 +13,7 @@ class PreviewCreated(BaseModel):
 
 class ConfirmPreview(BaseModel):
     visibility: Visibility
+    print: bool = True
 
 
 class PhotoView(BaseModel):

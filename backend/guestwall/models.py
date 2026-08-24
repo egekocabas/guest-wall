@@ -26,6 +26,7 @@ class PreviewState(StrEnum):
 
 
 class PrintStatus(StrEnum):
+    NOT_PRINTED = "not_printed"
     PRINTED = "printed"
     REPRINTING = "reprinting"
     FAILED = "failed"
@@ -42,7 +43,7 @@ class Photo(Base):
     preview_path: Mapped[str] = mapped_column(String(255))
     print_path: Mapped[str] = mapped_column(String(255))
     print_status: Mapped[str] = mapped_column(String(16), default=PrintStatus.PRINTED.value)
-    printed_at: Mapped[datetime] = mapped_column(DateTime)
+    printed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_reprint_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_reprinted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
