@@ -40,6 +40,28 @@ def test_printer_client_decodes_both_distinct_pngs() -> None:
         asyncio.run(client.close())
 
 
+def test_printer_client_forwards_optional_date_and_time() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        body = await request.aread()
+        assert b'name="date"' in body
+        assert b"24/08/2026" in body
+        assert b'name="time"' in body
+        assert b"18:34" in body
+        return httpx.Response(
+            200,
+            json={
+                "exact_print_image": base64.b64encode(EXACT).decode(),
+                "enhanced_preview_image": base64.b64encode(ENHANCED).decode(),
+            },
+        )
+
+    client = client_with(httpx.MockTransport(handler))
+    try:
+        asyncio.run(client.preview(b"image", "image/jpeg", "24/08/2026", "18:34"))
+    finally:
+        asyncio.run(client.close())
+
+
 def test_printer_client_sends_prepared_png_unchanged() -> None:
     seen: list[bytes] = []
 

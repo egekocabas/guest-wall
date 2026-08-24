@@ -1,4 +1,5 @@
-from datetime import timedelta
+import re
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
@@ -52,6 +53,8 @@ class GuestwallService:
         session: Session,
         image: bytes,
         content_type: str,
+        date: str | None = None,
+        time: str | None = None,
     ) -> PreviewSession:
         PREVIEW_REQUESTS.inc()
         if not image:
@@ -63,8 +66,10 @@ class GuestwallService:
         if not content_type.startswith("image/") and content_type != "application/octet-stream":
             raise ServiceError(415, "Choose an image file.", "invalid_content_type")
 
+        self._validate_caption(date, time)
+
         try:
-            prepared = await self.printer.preview(image, content_type)
+            prepared = await self.printer.preview(image, content_type, date, time)
         except PrinterAgentError as exc:
             raise ServiceError(503, str(exc), exc.code, retryable=exc.retryable) from exc
 
@@ -89,6 +94,37 @@ class GuestwallService:
             session.rollback()
             self.storage.remove_preview(preview_id)
             raise
+
+    @staticmethod
+    def _validate_caption(date: str | None, time: str | None) -> None:
+        if date is None:
+            if time is not None:
+                raise ServiceError(400, "A time caption also requires a date.", "date_required")
+            return
+
+        try:
+            if not re.fullmatch(r"\d{2}/\d{2}/\d{4}", date):
+                raise ValueError
+            datetime.strptime(date, "%d/%m/%Y")
+        except ValueError as exc:
+            raise ServiceError(
+                400,
+                "The caption date must be a real date in DD/MM/YYYY format.",
+                "invalid_caption_date",
+            ) from exc
+
+        if time is None:
+            return
+        try:
+            if not re.fullmatch(r"\d{2}:\d{2}", time):
+                raise ValueError
+            datetime.strptime(time, "%H:%M")
+        except ValueError as exc:
+            raise ServiceError(
+                400,
+                "The caption time must be a real time in HH:MM format.",
+                "invalid_caption_time",
+            ) from exc
 
     def get_preview(self, session: Session, preview_id: str) -> tuple[PreviewSession, Path]:
         record = session.get(PreviewSession, preview_id)

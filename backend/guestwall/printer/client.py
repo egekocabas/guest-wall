@@ -33,12 +33,24 @@ class PrinterAgentClient:
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def preview(self, image: bytes, content_type: str) -> PreparedImages:
+    async def preview(
+        self,
+        image: bytes,
+        content_type: str,
+        date: str | None = None,
+        time: str | None = None,
+    ) -> PreparedImages:
+        caption = {}
+        if date is not None:
+            caption["date"] = date
+        if time is not None:
+            caption["time"] = time
         try:
             with PRINTER_REQUEST_DURATION.labels(operation="preview").time():
                 response = await self._client.post(
                     "/preview/image",
                     params={"response": "json"},
+                    data=caption,
                     files={"image": ("upload", image, content_type)},
                 )
             response.raise_for_status()

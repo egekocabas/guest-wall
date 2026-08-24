@@ -1,6 +1,18 @@
 from collections.abc import Iterator
+from typing import cast
 
-from fastapi import APIRouter, Depends, File, Header, Query, Request, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Header,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -23,7 +35,7 @@ def get_session(request: Request) -> Iterator[Session]:
 
 
 def get_service(request: Request) -> GuestwallService:
-    return request.app.state.service
+    return cast(GuestwallService, request.app.state.service)
 
 
 def photo_view(photo: Photo, image_prefix: str) -> PhotoView:
@@ -40,13 +52,19 @@ def photo_view(photo: Photo, image_prefix: str) -> PhotoView:
 async def create_preview(
     request: Request,
     image: UploadFile = File(...),
+    date: str | None = Form(None),
+    time: str | None = Form(None),
     session: Session = Depends(get_session),
     service: GuestwallService = Depends(get_service),
 ) -> PreviewCreated:
     limit = request.app.state.settings.max_upload_bytes
     original = await image.read(limit + 1)
     record = await service.create_preview(
-        session, original, image.content_type or "application/octet-stream"
+        session,
+        original,
+        image.content_type or "application/octet-stream",
+        date,
+        time,
     )
     return PreviewCreated(
         preview_id=record.id,
