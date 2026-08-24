@@ -84,6 +84,44 @@ describe("Guestwall", () => {
     expect(screen.getByText("Page 1")).toBeInTheDocument();
   });
 
+  it("paginates admin photos and keeps each page bounded", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      const offset = new URL(url, "http://guestwall.test").searchParams.get("offset");
+      const indexes = offset === "12" ? [12] : Array.from({ length: 12 }, (_, index) => index);
+      return new Response(
+        JSON.stringify({
+          items: indexes.map((index) => ({
+            id: `admin-photo-${index}`,
+            created_at: `2026-08-24T16:${String(59 - index).padStart(2, "0")}:00Z`,
+            visibility: "public",
+            print_status: "printed",
+            image_url: `/admin-photo-${index}.png`,
+          })),
+          next_offset: offset === "12" ? null : 12,
+          total: 13,
+        }),
+      );
+    });
+
+    const user = userEvent.setup();
+    const { container } = render(<App modeOverride="admin" />);
+    expect(await screen.findByText("12 shown / 13 total")).toBeInTheDocument();
+    expect(screen.getByText("Page 1")).toHaveAttribute("aria-current", "page");
+    expect(fetchMock).toHaveBeenCalledWith("/api/admin/photos?offset=0&limit=12", undefined);
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText("1 shown / 13 total")).toBeInTheDocument();
+    expect(screen.getByText("Page 2")).toBeInTheDocument();
+    expect(container.querySelector('img[src="/admin-photo-12.png"]')).toBeInTheDocument();
+    expect(container.querySelector('img[src="/admin-photo-0.png"]')).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/admin/photos?offset=12&limit=12", undefined);
+
+    await user.click(screen.getByRole("button", { name: "Previous" }));
+    expect(await screen.findByText("12 shown / 13 total")).toBeInTheDocument();
+    expect(screen.getByText("Page 1")).toBeInTheDocument();
+  });
+
   it("keeps gallery order and eagerly loads the first visible photos", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
