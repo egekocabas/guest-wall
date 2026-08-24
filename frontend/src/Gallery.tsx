@@ -66,22 +66,20 @@ export function Gallery({ publicOnly = false, refreshToken = 0 }: GalleryProps) 
             className="paper-photo mb-2.5 break-inside-avoid min-[380px]:mb-3 sm:mb-5"
             style={{ rotate: `${((index % 5) - 2) * 0.35}deg` }}
           >
-            <img
-              src={photo.image_url}
-              alt="A thermal Guestwall memory"
-              loading="lazy"
-              className="h-auto w-full grayscale"
-            />
-            <figcaption className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 font-mono text-[0.65rem] uppercase leading-4 tracking-[0.08em] text-ink/50 sm:text-[0.7rem] sm:tracking-wider">
-              <time dateTime={photo.created_at}>
-                {new Intl.DateTimeFormat(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                }).format(new Date(photo.created_at))}
-              </time>
-              {!publicOnly && photo.visibility === "private" ? <span>home</span> : null}
-            </figcaption>
+            <div className="relative">
+              <img
+                src={photo.image_url}
+                alt="A thermal Guestwall memory"
+                loading="lazy"
+                className="h-auto w-full grayscale"
+              />
+              <PhotoDate createdAt={photo.created_at} />
+            </div>
+            {!publicOnly && photo.visibility === "private" ? (
+              <figcaption className="mt-2 font-mono text-[0.65rem] uppercase leading-4 tracking-[0.08em] text-ink/50 sm:text-[0.7rem] sm:tracking-wider">
+                home
+              </figcaption>
+            ) : null}
           </figure>
         ))}
       </div>
@@ -100,5 +98,22 @@ export function Gallery({ publicOnly = false, refreshToken = 0 }: GalleryProps) 
         </button>
       ) : null}
     </section>
+  );
+}
+
+function PhotoDate({ createdAt }: { createdAt: string }) {
+  const formattedDate = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(createdAt));
+
+  return (
+    <details className="photo-date absolute right-1 top-1 z-10">
+      <summary aria-label="Show added date" role="button" title="Show added date">
+        <span aria-hidden="true">i</span>
+      </summary>
+      <time dateTime={createdAt}>Added {formattedDate}</time>
+    </details>
   );
 }

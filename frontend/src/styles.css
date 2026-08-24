@@ -49,6 +49,20 @@
   .paper-photo {
     @apply overflow-hidden bg-[#fffdf8] p-2 pb-3 shadow-paper transition-transform duration-200 hover:-translate-y-1;
   }
+  .photo-date summary {
+    @apply flex size-5 cursor-pointer list-none items-center justify-center rounded-full border border-white/70 bg-ink/70 font-display text-[0.6rem] font-bold normal-case text-white shadow-sm backdrop-blur-sm transition hover:bg-ink;
+  }
+  .photo-date summary::-webkit-details-marker {
+    display: none;
+  }
+  .photo-date time {
+    @apply pointer-events-none absolute right-0 top-6 w-max max-w-44 translate-y-1 rounded-md bg-ink px-2.5 py-1.5 text-right font-mono text-[0.6rem] uppercase leading-4 tracking-wide text-paper opacity-0 shadow-lg transition;
+  }
+  .photo-date[open] time,
+  .photo-date:hover time,
+  .photo-date:focus-within time {
+    @apply translate-y-0 opacity-100;
+  }
   .primary-button {
     @apply inline-flex min-h-13 items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-bold text-paper transition hover:bg-ink/85 disabled:cursor-wait disabled:opacity-60 sm:min-h-12;
   }

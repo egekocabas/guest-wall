@@ -23,6 +23,48 @@ describe("Guestwall", () => {
     expect(screen.queryByLabelText("Take a photo")).not.toBeInTheDocument();
   });
 
+  it("keeps wall dates behind an accessible hover and tap control", async () => {
+    const createdAt = "2026-08-24T16:00:00Z";
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/api/printer/status") return new Response(JSON.stringify({ online: true }));
+      if (url.startsWith("/api/photos?"))
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "home-photo",
+                created_at: createdAt,
+                visibility: "private",
+                print_status: "printed",
+                image_url: "/home-photo.png",
+              },
+            ],
+            next_offset: null,
+          }),
+        );
+      return new Response(null, { status: 204 });
+    });
+
+    const user = userEvent.setup();
+    const { container } = render(<App modeOverride="lan" />);
+    expect(await screen.findByText("home")).toBeInTheDocument();
+    expect(container.querySelector("figcaption time")).not.toBeInTheDocument();
+
+    const dateControl = screen.getByRole("button", { name: "Show added date" });
+    const details = dateControl.closest("details");
+    expect(details).not.toHaveAttribute("open");
+    await user.click(dateControl);
+    expect(details).toHaveAttribute("open");
+    expect(details?.querySelector("time")).toHaveTextContent(
+      `Added ${new Intl.DateTimeFormat(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }).format(new Date(createdAt))}`,
+    );
+  });
+
   it("previews and confirms a guest photo", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
