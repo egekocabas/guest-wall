@@ -7,19 +7,30 @@ interface GuestFlowProps {
 }
 
 type CaptionMode = "none" | "date" | "datetime";
+type Phase = "choose" | "preview" | "printing" | "done";
+
+interface PreviewSelection {
+  captionMode: CaptionMode;
+  mirrored: boolean;
+}
 
 export function GuestFlow({ onAdded }: GuestFlowProps) {
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedAt, setSelectedAt] = useState<Date | null>(null);
   const [captionMode, setCaptionMode] = useState<CaptionMode>("none");
+  const [mirrored, setMirrored] = useState(false);
   const [visibility, setVisibility] = useState<Visibility>("public");
-  const [phase, setPhase] = useState<
-    "choose" | "customize" | "preparing" | "preview" | "printing" | "done"
-  >("choose");
+  const [phase, setPhase] = useState<Phase>("choose");
+  const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState("");
   const [printerOnline, setPrinterOnline] = useState<boolean | null>(null);
-  const activePreview = useRef<string | null>(null);
+  const previewCache = useRef(new Map<string, Preview>());
+  const previewRequests = useRef(new Map<string, Promise<Preview>>());
+  const mirroredFile = useRef<Promise<File> | null>(null);
+  const selectedFileRef = useRef<File | null>(null);
+  const desiredSelection = useRef<PreviewSelection>({ captionMode: "none", mirrored: false });
+  const shownSelection = useRef<PreviewSelection | null>(null);
+  const flowGeneration = useRef(0);
 
   useEffect(() => {
     void api
@@ -30,39 +41,99 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
 
   useEffect(
     () => () => {
-      if (activePreview.current)
-        void api.deletePreview(activePreview.current).catch(() => undefined);
+      flowGeneration.current += 1;
+      void discardPreviews(previewCache.current);
     },
     [],
   );
 
-  function choose(file?: File) {
+  async function choose(file?: File) {
     if (!file) return;
+    const generation = flowGeneration.current + 1;
+    flowGeneration.current = generation;
+    void discardPreviews(previewCache.current);
+    previewCache.current = new Map();
+    previewRequests.current = new Map();
+    mirroredFile.current = null;
+    selectedFileRef.current = file;
+    desiredSelection.current = { captionMode: "none", mirrored: false };
+    shownSelection.current = null;
     setError("");
-    setSelectedFile(file);
-    setSelectedAt(new Date());
+    const capturedAt = new Date();
+    setSelectedAt(capturedAt);
     setCaptionMode("none");
-    setPhase("customize");
+    setMirrored(false);
+    setPreview(null);
+    setPhase("preview");
+    setPreparing(true);
+    await selectPreview({ captionMode: "none", mirrored: false }, file, capturedAt, generation);
   }
 
-  async function preparePreview() {
-    if (!selectedFile || !selectedAt) return;
+  async function selectPreview(
+    selection: PreviewSelection,
+    file = selectedFileRef.current,
+    capturedAt = selectedAt,
+    generation = flowGeneration.current,
+  ) {
+    if (!file || !capturedAt) return;
+    desiredSelection.current = selection;
+    setCaptionMode(selection.captionMode);
+    setMirrored(selection.mirrored);
     setError("");
-    setPhase("preparing");
+    const key = previewKey(selection);
+    const cached = previewCache.current.get(key);
+    if (cached) {
+      shownSelection.current = selection;
+      setPreview(cached);
+      setPreparing(false);
+      return;
+    }
+
+    setPreparing(true);
+    let request = previewRequests.current.get(key);
     try {
-      const caption = formatCaption(selectedAt, captionMode);
-      const created = await api.createPreview(selectedFile, caption.date, caption.time);
-      activePreview.current = created.preview_id;
+      if (!request) {
+        request = preparePreviewVariant(selection, file, capturedAt, getMirroredFile);
+        previewRequests.current.set(key, request);
+      }
+      const created = await request;
+      if (previewRequests.current.get(key) === request) previewRequests.current.delete(key);
+      if (generation !== flowGeneration.current) {
+        void api.deletePreview(created.preview_id).catch(() => undefined);
+        return;
+      }
+      previewCache.current.set(key, created);
+      if (previewKey(desiredSelection.current) !== key) return;
+      shownSelection.current = selection;
       setPreview(created);
-      setPhase("preview");
+      setPreparing(false);
     } catch (caught) {
-      setError(
+      if (previewRequests.current.get(key) === request) previewRequests.current.delete(key);
+      if (generation !== flowGeneration.current || previewKey(desiredSelection.current) !== key)
+        return;
+      if (selection.mirrored) mirroredFile.current = null;
+      const message =
         caught instanceof ApiError
           ? caught.message
-          : "We couldn’t prepare this photo. Try another image.",
-      );
-      setPhase("choose");
+          : caught instanceof Error
+            ? caught.message
+            : "We couldn’t prepare this photo. Try another image.";
+      setError(message);
+      setPreparing(false);
+      if (shownSelection.current) {
+        desiredSelection.current = shownSelection.current;
+        setCaptionMode(shownSelection.current.captionMode);
+        setMirrored(shownSelection.current.mirrored);
+      } else {
+        await reset();
+        setError(message);
+      }
     }
+  }
+
+  function getMirroredFile(file: File): Promise<File> {
+    if (!mirroredFile.current) mirroredFile.current = mirrorPhoto(file);
+    return mirroredFile.current;
   }
 
   async function print() {
@@ -71,7 +142,13 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
     setError("");
     try {
       await api.confirmPreview(preview.preview_id, visibility);
-      activePreview.current = null;
+      const retained = preview.preview_id;
+      const variants = previewCache.current;
+      previewCache.current = new Map();
+      flowGeneration.current += 1;
+      selectedFileRef.current = null;
+      mirroredFile.current = null;
+      void discardPreviews(variants, retained);
       setPhase("done");
       onAdded();
     } catch (caught) {
@@ -85,15 +162,22 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
   }
 
   async function reset() {
-    if (activePreview.current)
-      await api.deletePreview(activePreview.current).catch(() => undefined);
-    activePreview.current = null;
+    flowGeneration.current += 1;
+    const variants = previewCache.current;
+    previewCache.current = new Map();
+    previewRequests.current = new Map();
+    selectedFileRef.current = null;
+    mirroredFile.current = null;
+    desiredSelection.current = { captionMode: "none", mirrored: false };
+    shownSelection.current = null;
     setPreview(null);
-    setSelectedFile(null);
     setSelectedAt(null);
     setCaptionMode("none");
+    setMirrored(false);
+    setPreparing(false);
     setError("");
     setPhase("choose");
+    await discardPreviews(variants);
   }
 
   return (
@@ -136,7 +220,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
                   type="file"
                   accept="image/*"
                   capture="environment"
-                  onChange={(event) => choose(event.target.files?.[0])}
+                  onChange={(event) => void choose(event.target.files?.[0])}
                 />
               </label>
               <label className="secondary-button cursor-pointer">
@@ -146,65 +230,10 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
                   className="sr-only"
                   type="file"
                   accept="image/*"
-                  onChange={(event) => choose(event.target.files?.[0])}
+                  onChange={(event) => void choose(event.target.files?.[0])}
                 />
               </label>
             </div>
-          </div>
-        ) : null}
-
-        {(phase === "customize" || phase === "preparing") && selectedAt ? (
-          <div>
-            <p className="font-mono text-[0.65rem] uppercase tracking-[0.26em] text-ink/50">
-              Photo selected
-            </p>
-            <h1
-              id="contribute-title"
-              className="mt-2 font-display text-3xl font-black leading-tight tracking-tight sm:text-4xl"
-            >
-              Add a timestamp?
-            </h1>
-            <p className="mt-2 text-sm leading-6 text-ink/60">
-              This is optional. It will appear below the photo in the preview and on paper.
-            </p>
-            <fieldset className="mt-5" disabled={phase === "preparing"}>
-              <legend className="sr-only">Timestamp on print</legend>
-              <CaptionChoice
-                mode="none"
-                selected={captionMode}
-                label="No date"
-                detail="Print only the photo"
-                onSelect={setCaptionMode}
-              />
-              <CaptionChoice
-                mode="date"
-                selected={captionMode}
-                label="Date"
-                detail={formatCaption(selectedAt, "date").date ?? ""}
-                onSelect={setCaptionMode}
-              />
-              <CaptionChoice
-                mode="datetime"
-                selected={captionMode}
-                label="Date & time"
-                detail={`${formatCaption(selectedAt, "datetime").date} ${formatCaption(selectedAt, "datetime").time}`}
-                onSelect={setCaptionMode}
-              />
-            </fieldset>
-            <button
-              className="primary-button mt-5 w-full"
-              disabled={phase === "preparing"}
-              onClick={() => void preparePreview()}
-            >
-              {phase === "preparing" ? "Preparing your print…" : "Create preview"}
-            </button>
-            <button
-              className="quiet-action mt-2"
-              disabled={phase === "preparing"}
-              onClick={() => void reset()}
-            >
-              Choose a different photo
-            </button>
           </div>
         ) : null}
 
@@ -213,13 +242,53 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
             <p className="font-mono text-[0.65rem] uppercase tracking-[0.26em] text-ink/50">
               This will be printed
             </p>
-            <div className="mx-auto my-5 max-w-sm overflow-hidden bg-white p-3 pb-5 shadow-paper">
+            <div className="relative mx-auto my-5 max-w-sm overflow-hidden bg-white p-3 pb-5 shadow-paper">
               <img
                 src={preview.preview_url}
                 alt="Your thermal print preview"
                 className="w-full grayscale"
               />
+              {preparing ? <PreviewSpinner /> : null}
             </div>
+            <button
+              type="button"
+              className="secondary-button mx-auto"
+              aria-pressed={mirrored}
+              disabled={phase === "printing"}
+              onClick={() => void selectPreview({ captionMode, mirrored: !mirrored })}
+            >
+              <MirrorIcon /> {mirrored ? "Use original direction" : "Mirror photo"}
+            </button>
+            {selectedAt ? (
+              <fieldset className="mt-6" disabled={phase === "printing"}>
+                <legend className="font-display text-xl font-bold">Add a timestamp?</legend>
+                <p className="mb-3 mt-1 text-sm leading-6 text-ink/60">
+                  Each option is prepared by the printer. Previously viewed options switch back
+                  instantly.
+                </p>
+                <CaptionChoice
+                  mode="none"
+                  selected={captionMode}
+                  label="No date"
+                  detail="Print only the photo"
+                  onSelect={(mode) => void selectPreview({ captionMode: mode, mirrored })}
+                />
+                <CaptionChoice
+                  mode="date"
+                  selected={captionMode}
+                  label="Date"
+                  detail={formatCaption(selectedAt, "date").date ?? ""}
+                  onSelect={(mode) => void selectPreview({ captionMode: mode, mirrored })}
+                />
+                <CaptionChoice
+                  mode="datetime"
+                  selected={captionMode}
+                  label="Date & time"
+                  detail={`${formatCaption(selectedAt, "datetime").date} ${formatCaption(selectedAt, "datetime").time}`}
+                  onSelect={(mode) => void selectPreview({ captionMode: mode, mirrored })}
+                />
+              </fieldset>
+            ) : null}
             <fieldset className="mt-6">
               <legend className="font-display text-xl font-bold">Who can see it?</legend>
               <label className={`choice ${visibility === "public" ? "choice-selected" : ""}`}>
@@ -251,7 +320,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
             </fieldset>
             <button
               className="primary-button mt-5 w-full"
-              disabled={phase === "printing"}
+              disabled={phase === "printing" || preparing}
               onClick={() => void print()}
             >
               {phase === "printing" ? "Printing…" : "Print & add to wall"}
@@ -262,6 +331,19 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
               onClick={() => void reset()}
             >
               Choose a different photo
+            </button>
+          </div>
+        ) : null}
+
+        {phase === "preview" && !preview ? (
+          <div className="py-12 text-center" role="status">
+            <LoadingIcon />
+            <h2 className="mt-5 font-display text-3xl font-black">Preparing your preview…</h2>
+            <p className="mt-2 text-sm text-ink/60">
+              The printer is creating the basic thermal version first.
+            </p>
+            <button className="quiet-action mt-5" onClick={() => void reset()}>
+              Cancel
             </button>
           </div>
         ) : null}
@@ -286,6 +368,80 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
         ) : null}
       </div>
     </section>
+  );
+}
+
+function previewKey(selection: PreviewSelection): string {
+  return `${selection.mirrored ? "mirrored" : "original"}:${selection.captionMode}`;
+}
+
+async function preparePreviewVariant(
+  selection: PreviewSelection,
+  file: File,
+  capturedAt: Date,
+  getMirroredFile: (file: File) => Promise<File>,
+): Promise<Preview> {
+  const source = selection.mirrored ? await getMirroredFile(file) : file;
+  const caption = formatCaption(capturedAt, selection.captionMode);
+  return api.createPreview(source, caption.date, caption.time);
+}
+
+async function discardPreviews(previews: Map<string, Preview>, exceptId?: string): Promise<void> {
+  const ids = new Set([...previews.values()].map((item) => item.preview_id));
+  if (exceptId) ids.delete(exceptId);
+  await Promise.all([...ids].map((id) => api.deletePreview(id).catch(() => undefined)));
+}
+
+async function mirrorPhoto(file: File): Promise<File> {
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = sourceUrl;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Image mirroring is not supported by this browser.");
+    context.translate(canvas.width, 0);
+    context.scale(-1, 1);
+    context.drawImage(image, 0, 0);
+    const type = file.type === "image/png" ? "image/png" : "image/jpeg";
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (output) =>
+          output ? resolve(output) : reject(new Error("The mirrored photo could not be created.")),
+        type,
+        0.95,
+      ),
+    );
+    return new File([blob], `mirrored-${file.name.replace(/\.[^.]+$/, "")}`, {
+      type,
+      lastModified: file.lastModified,
+    });
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+function PreviewSpinner() {
+  return (
+    <div
+      className="absolute inset-0 grid place-items-center bg-white/75 backdrop-blur-[1px]"
+      role="status"
+      aria-label="Preparing selected preview"
+    >
+      <LoadingIcon />
+    </div>
+  );
+}
+
+function LoadingIcon() {
+  return (
+    <span
+      aria-hidden="true"
+      className="mx-auto block size-9 animate-spin rounded-full border-4 border-ink/15 border-t-ink"
+    />
   );
 }
 
@@ -356,6 +512,21 @@ function ImageIcon() {
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <circle cx="8.5" cy="8.5" r="1.5" />
       <path d="m21 15-5-5L5 21" />
+    </svg>
+  );
+}
+
+function MirrorIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="size-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M12 3v18M8 7 4 12l4 5M16 7l4 5-4 5" />
     </svg>
   );
 }

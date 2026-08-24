@@ -1,10 +1,14 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("Guestwall", () => {
   it("uses only the public gallery API in public mode", async () => {
@@ -52,7 +56,6 @@ describe("Guestwall", () => {
       screen.getByLabelText("Choose from library"),
       new File(["photo"], "photo.jpg", { type: "image/jpeg" }),
     );
-    await user.click(screen.getByRole("button", { name: "Create preview" }));
     expect(await screen.findByAltText("Your thermal print preview")).toHaveAttribute(
       "src",
       "/preview.png",
@@ -68,18 +71,20 @@ describe("Guestwall", () => {
   });
 
   it("adds the current date and time to the preview when selected", async () => {
-    let previewForm: FormData | undefined;
+    const previewForms: FormData[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
       if (url === "/api/printer/status") return new Response(JSON.stringify({ online: true }));
       if (url.startsWith("/api/photos?"))
         return new Response(JSON.stringify({ items: [], next_offset: null }));
       if (url === "/api/previews") {
-        previewForm = init?.body as FormData;
+        const form = init?.body as FormData;
+        previewForms.push(form);
+        const hasTime = form.has("time");
         return new Response(
           JSON.stringify({
-            preview_id: "preview-2",
-            preview_url: "/preview-with-date.png",
+            preview_id: hasTime ? "preview-with-date" : "preview-basic",
+            preview_url: hasTime ? "/preview-with-date.png" : "/preview-basic.png",
             expires_at: "2026-08-24T18:34:00",
           }),
           { status: 201 },
@@ -94,14 +99,106 @@ describe("Guestwall", () => {
       screen.getByLabelText("Choose from library"),
       new File(["photo"], "photo.jpg", { type: "image/jpeg" }),
     );
-    await user.click(screen.getByRole("radio", { name: /Date & time/ }));
-    await user.click(screen.getByRole("button", { name: "Create preview" }));
-
     expect(await screen.findByAltText("Your thermal print preview")).toHaveAttribute(
+      "src",
+      "/preview-basic.png",
+    );
+    await user.click(screen.getByRole("radio", { name: /Date & time/ }));
+
+    await waitFor(() =>
+      expect(screen.getByAltText("Your thermal print preview")).toHaveAttribute(
+        "src",
+        "/preview-with-date.png",
+      ),
+    );
+    expect(previewForms).toHaveLength(2);
+    expect(previewForms[1]?.get("date")).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+    expect(previewForms[1]?.get("time")).toMatch(/^\d{2}:\d{2}$/);
+
+    await user.click(screen.getByRole("radio", { name: /No date/ }));
+    expect(screen.getByAltText("Your thermal print preview")).toHaveAttribute(
+      "src",
+      "/preview-basic.png",
+    );
+    await user.click(screen.getByRole("radio", { name: /Date & time/ }));
+    expect(screen.getByAltText("Your thermal print preview")).toHaveAttribute(
       "src",
       "/preview-with-date.png",
     );
-    expect(previewForm?.get("date")).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
-    expect(previewForm?.get("time")).toMatch(/^\d{2}:\d{2}$/);
+    expect(previewForms).toHaveLength(2);
+  });
+
+  it("creates a printer preview from a mirrored copy and keeps the original variant", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:photo");
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    vi.stubGlobal(
+      "Image",
+      class {
+        src = "";
+        naturalWidth = 120;
+        naturalHeight = 80;
+
+        async decode() {}
+      },
+    );
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      translate: vi.fn(),
+      scale: vi.fn(),
+      drawImage,
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) => {
+      callback(new Blob(["mirrored"], { type: "image/jpeg" }));
+    });
+
+    const uploadedNames: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/printer/status") return new Response(JSON.stringify({ online: true }));
+      if (url.startsWith("/api/photos?"))
+        return new Response(JSON.stringify({ items: [], next_offset: null }));
+      if (url === "/api/previews") {
+        const uploaded = (init?.body as FormData).get("image") as File;
+        uploadedNames.push(uploaded.name);
+        const mirrored = uploaded.name.startsWith("mirrored-");
+        return new Response(
+          JSON.stringify({
+            preview_id: mirrored ? "mirrored" : "original",
+            preview_url: mirrored ? "/mirrored.png" : "/original.png",
+            expires_at: "2026-08-24T18:34:00",
+          }),
+          { status: 201 },
+        );
+      }
+      return new Response(null, { status: 204 });
+    });
+
+    const user = userEvent.setup();
+    render(<App modeOverride="lan" />);
+    await user.upload(
+      screen.getByLabelText("Choose from library"),
+      new File(["photo"], "photo.jpg", { type: "image/jpeg" }),
+    );
+    expect(await screen.findByAltText("Your thermal print preview")).toHaveAttribute(
+      "src",
+      "/original.png",
+    );
+    await user.click(screen.getByRole("button", { name: "Mirror photo" }));
+    await waitFor(() =>
+      expect(screen.getByAltText("Your thermal print preview")).toHaveAttribute(
+        "src",
+        "/mirrored.png",
+      ),
+    );
+    expect(uploadedNames).toEqual(["photo.jpg", "mirrored-photo"]);
+    expect(drawImage).toHaveBeenCalledOnce();
+    expect(revoke).toHaveBeenCalledWith("blob:photo");
+
+    await user.click(screen.getByRole("button", { name: "Use original direction" }));
+    expect(screen.getByAltText("Your thermal print preview")).toHaveAttribute(
+      "src",
+      "/original.png",
+    );
+    expect(uploadedNames).toHaveLength(2);
   });
 });
