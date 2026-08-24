@@ -31,11 +31,15 @@
     },
     "admin": {
       "type": "object",
-      "required": ["basicAuthMiddleware"],
+      "required": ["basicAuthMiddleware", "basicAuthSecret"],
       "properties": {
         "basicAuthMiddleware": {
           "type": "string",
           "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[a-z0-9]([-a-z0-9]*[a-z0-9])?@kubernetescrd$"
+        },
+        "basicAuthSecret": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         }
       }
     },
@@ -46,4 +50,3 @@
   },
   "required": ["replicaCount", "image", "printerAgent", "persistence", "admin", "resources"]
 }
-

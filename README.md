@@ -42,7 +42,7 @@ show both the number currently visible and the collection size.
 
 - LAN host: full gallery, private images, uploads, previewing, printing, and admin routes.
 - Public host: only `/`, static assets, health endpoints, and `/api/public/*`. The public query filters in SQL, and the public image handler rechecks visibility.
-- Admin: `/admin*` and `/api/admin*` are a separate, higher-priority Traefik route with an existing Basic Auth middleware. Guestwall intentionally has no user database.
+- Admin: `/admin*` and `/api/admin*` are a separate, higher-priority Traefik route with Basic Auth backed by an existing Kubernetes Secret or middleware. Guestwall intentionally has no user database.
 
 The Helm public `Ingress` has an explicit list of `Exact`/`Prefix` paths rather than a catch-all `/` prefix. The backend additionally returns 404 for all non-public paths when the request host equals `PUBLIC_HOST`. Private images are never mounted as static files, so no guessed public URL can bypass the API.
 
@@ -116,7 +116,7 @@ CI runs formatting, linting, strict type checking, tests, the production fronten
 
 ## K3s / Helm deployment
 
-The chart follows the homelab's standard `networking.k8s.io/v1` Ingress pattern and expects an existing Traefik Basic Auth `Middleware`. It never creates or embeds credentials. A minimal environment values file looks like:
+The chart follows the homelab's standard `networking.k8s.io/v1` Ingress pattern. It can create a same-namespace Traefik Basic Auth `Middleware` backed by an existing Kubernetes Secret, or reference an existing middleware. It never creates or embeds credentials. A minimal environment values file looks like:
 
 ```yaml
 image:
@@ -124,8 +124,10 @@ image:
   tag: main
   digest: sha256:replace-with-published-multiarch-index-digest
 
+fullnameOverride: guest-wall
+
 printerAgent:
-  url: http://192.168.178.100:8001
+  url: http://192.168.178.100:8000
 
 app:
   publicHost: guest-wall.egekocabas.com
@@ -139,14 +141,14 @@ ingress:
     host: guest-wall.egekocabas.com
 
 admin:
-  basicAuthMiddleware: observability-observability-ui-auth@kubernetescrd
+  basicAuthSecret: guest-wall-admin-basic-auth
 
 networkPolicy:
   enabled: true
   printerAgent:
     enabled: true
     cidr: 192.168.178.100/32
-    port: 8001
+    port: 8000
 
 serviceMonitor:
   enabled: true
@@ -164,11 +166,11 @@ Operator configuration still required:
 
 1. Publish an ARM64-capable image and set its repository/tag.
 2. Set a printer-agent URL reachable from the K3s pod. The browser never receives this URL.
-3. Configure LAN DNS, the Cloudflare Tunnel public hostname, and the existing Traefik Basic Auth middleware provider reference (`namespace-name@kubernetescrd`). The LAN Ingress uses the homelab wildcard TLS setup; the public Tunnel Ingress intentionally has no LAN TLS annotations.
+3. Configure LAN DNS, the Cloudflare Tunnel public hostname, and either a same-namespace Basic Auth Secret (`admin.basicAuthSecret`) or an existing Traefik middleware provider reference (`admin.basicAuthMiddleware`). The LAN Ingress uses the homelab wildcard TLS setup; the public Tunnel Ingress intentionally has no LAN TLS annotations.
 4. Keep one replica and select the desired `local-path` storage size/class.
 5. Restrict the printer-agent at the network/host firewall layer to trusted callers.
 
-The default ingresses are disabled so `helm lint` is safe and the example hostnames cannot accidentally be deployed. Enabling LAN ingress without a full Basic Auth middleware reference fails template rendering. `NetworkPolicy` is also opt-in because its printer-agent CIDR must be configured correctly; the reference homelab values enable it.
+The default ingresses are disabled so `helm lint` is safe and the example hostnames cannot accidentally be deployed. Enabling LAN ingress without exactly one Basic Auth secret or middleware reference fails template rendering. `NetworkPolicy` is also opt-in because its printer-agent CIDR and port must be configured correctly; the reference homelab values enable it.
 
 ## Data, deletion, and backup
 

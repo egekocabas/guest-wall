@@ -51,8 +51,11 @@ ingress:
     tls: []
 
 admin:
-  # Full Traefik provider reference, e.g. namespace-middleware@kubernetescrd.
+  # Use an existing provider reference or create a same-namespace Middleware
+  # backed by an existing Kubernetes Secret. Set exactly one when LAN ingress
+  # is enabled.
   basicAuthMiddleware: ""
+  basicAuthSecret: ""
 
 networkPolicy:
   enabled: false
