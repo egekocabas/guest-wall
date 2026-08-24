@@ -153,8 +153,11 @@ class GuestwallService:
         session: Session,
         preview_id: str,
         visibility: Visibility,
+        *,
+        print_photo: bool = True,
     ) -> tuple[Photo, bool]:
-        PRINT_REQUESTS.inc()
+        if print_photo:
+            PRINT_REQUESTS.inc()
         record = session.get(PreviewSession, preview_id)
         if record is None:
             raise ServiceError(404, "This preview is no longer available.", "preview_not_found")
@@ -192,23 +195,26 @@ class GuestwallService:
         )
         session.commit()
         if claimed.rowcount != 1:
-            raise ServiceError(409, "This photo is already being printed.", "print_in_progress")
-
-        exact_print = self.storage.read(record.print_path)
-        try:
-            await self.printer.print_prepared(exact_print)
-        except PrinterAgentError as exc:
-            PRINT_FAILURES.inc()
-            next_state = PreviewState.UNCERTAIN if exc.ambiguous else PreviewState.FAILED
-            session.execute(
-                update(PreviewSession)
-                .where(PreviewSession.id == preview_id)
-                .values(state=next_state.value, error_code=exc.code)
+            raise ServiceError(
+                409, "This photo is already being added.", "confirmation_in_progress"
             )
-            session.commit()
-            raise ServiceError(503, str(exc), exc.code, retryable=exc.retryable) from exc
 
-        printed_at = utcnow()
+        if print_photo:
+            exact_print = self.storage.read(record.print_path)
+            try:
+                await self.printer.print_prepared(exact_print)
+            except PrinterAgentError as exc:
+                PRINT_FAILURES.inc()
+                next_state = PreviewState.UNCERTAIN if exc.ambiguous else PreviewState.FAILED
+                session.execute(
+                    update(PreviewSession)
+                    .where(PreviewSession.id == preview_id)
+                    .values(state=next_state.value, error_code=exc.code)
+                )
+                session.commit()
+                raise ServiceError(503, str(exc), exc.code, retryable=exc.retryable) from exc
+
+        printed_at = utcnow() if print_photo else None
         try:
             preview_path, print_path = self.storage.promote(preview_id, preview_id)
             photo = Photo(
@@ -216,7 +222,9 @@ class GuestwallService:
                 visibility=visibility.value,
                 preview_path=preview_path,
                 print_path=print_path,
-                print_status=PrintStatus.PRINTED.value,
+                print_status=(
+                    PrintStatus.PRINTED.value if print_photo else PrintStatus.NOT_PRINTED.value
+                ),
                 printed_at=printed_at,
             )
             session.add(photo)
@@ -230,14 +238,21 @@ class GuestwallService:
         except Exception as exc:
             session.rollback()
             self.storage.demote(preview_id, preview_id)
+            failure_state = PreviewState.UNCERTAIN if print_photo else PreviewState.FAILED
+            error_code = "storage_failure_after_print" if print_photo else "storage_failure"
             session.execute(
                 update(PreviewSession)
                 .where(PreviewSession.id == preview_id)
-                .values(
-                    state=PreviewState.UNCERTAIN.value, error_code="storage_failure_after_print"
-                )
+                .values(state=failure_state.value, error_code=error_code)
             )
             session.commit()
+            if not print_photo:
+                raise ServiceError(
+                    500,
+                    "The photo could not be added to the wall. Please try again.",
+                    error_code,
+                    retryable=True,
+                ) from exc
             raise ServiceError(
                 500,
                 "The photo printed, but could not be added to the wall. Ask the host for help.",
@@ -251,13 +266,21 @@ class GuestwallService:
         public_only: bool,
         offset: int,
         limit: int,
-    ) -> tuple[list[Photo], int | None]:
-        statement = select(Photo).order_by(Photo.created_at.desc()).offset(offset).limit(limit + 1)
+    ) -> tuple[list[Photo], int | None, int]:
+        statement = (
+            select(Photo)
+            .order_by(Photo.created_at.desc(), Photo.id.desc())
+            .offset(offset)
+            .limit(limit + 1)
+        )
+        count_statement = select(func.count()).select_from(Photo)
         if public_only:
             statement = statement.where(Photo.visibility == Visibility.PUBLIC.value)
+            count_statement = count_statement.where(Photo.visibility == Visibility.PUBLIC.value)
+        total = session.scalar(count_statement) or 0
         photos = list(session.scalars(statement))
         has_more = len(photos) > limit
-        return photos[:limit], offset + limit if has_more else None
+        return photos[:limit], offset + limit if has_more else None, total
 
     def get_photo(self, session: Session, photo_id: str, *, public_only: bool) -> Photo:
         photo = session.get(Photo, photo_id)
@@ -312,7 +335,9 @@ class GuestwallService:
             session.commit()
             raise ServiceError(503, str(exc), exc.code, retryable=exc.retryable) from exc
         photo.print_status = PrintStatus.PRINTED.value
-        photo.last_reprinted_at = utcnow()
+        printed_at = utcnow()
+        photo.printed_at = photo.printed_at or printed_at
+        photo.last_reprinted_at = printed_at
         session.commit()
         return False
 

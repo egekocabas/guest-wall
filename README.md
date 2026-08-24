@@ -25,11 +25,18 @@ The single container builds the Vite application and serves it from FastAPI. SQL
 
 ### Preview and print state
 
-`POST /api/previews` keeps the bounded original in request-scoped multipart storage (memory, with larger files spooled only to the pod's ephemeral `/tmp`), sends it to `printer-agent`, and writes only the two returned PNGs under `/data/previews/<uuid>/`. Guests can optionally add their browser's current date or date and time as a caption; Guestwall forwards those fields while preparing the image, so the caption is part of both returned PNGs. The original is never written to `/data`; request cleanup removes any spool file, and Kubernetes mounts `/tmp` as a size-limited `emptyDir`. Preview rows expire after one hour by default; startup, opportunistic access, and a small in-process cleanup loop remove abandoned previews.
+After a guest chooses a photo, the browser immediately sends it to `POST /api/previews` without a caption and shows the basic printer-generated preview. The selected `File` remains only in that browser tab while the flow is active. Choosing a date, date and time, or mirrored direction creates another temporary printer preview; generated variants are cached in the tab so switching back does not call the printer-agent again. Mirroring is applied to a browser-generated copy before thermal preparation, so captions remain readable and the printed raster exactly matches the selected preview.
 
-Confirmation atomically claims `ready`/`failed` as `printing`. Only one request can print it. A successful printer response promotes the directory to `/data/photos/<uuid>/` and creates a permanent `Photo`. Repeating the confirmation returns the existing photo without printing again. A definite failure may be retried. A timeout or other ambiguous transport failure becomes `uncertain` and is deliberately not retryable, because the printer may already have printed after the response was lost. This conservative edge case requires the host to inspect the printer.
+Each `POST /api/previews` keeps the bounded upload in request-scoped multipart storage (memory, with larger files spooled only to the pod's ephemeral `/tmp`), sends it to `printer-agent`, and writes only the two returned PNGs under `/data/previews/<uuid>/`. The original is never written to `/data`; request cleanup removes any spool file, and Kubernetes mounts `/tmp` as a size-limited `emptyDir`. Confirming one variant deletes its unused siblings, while changing the photo, cancelling, leaving the page, expiry, startup cleanup, and the in-process cleanup loop remove abandoned previews.
+
+Confirmation atomically claims `ready`/`failed` so only one request can finalize a preview. Guests can either print and add the photo or add it to the wall without calling the printer; wall-only photos are stored with `print_status=not_printed` and can be printed later from Admin. A successful confirmation promotes the directory to `/data/photos/<uuid>/` and creates a permanent `Photo`. Repeating the confirmation returns the existing photo without printing again. A definite print failure may be retried. A timeout or other ambiguous transport failure becomes `uncertain` and is deliberately not retryable, because the printer may already have printed after the response was lost. This conservative edge case requires the host to inspect the printer.
 
 Admin reprints require an `Idempotency-Key`; repeating the same key never produces a second reprint.
+
+Gallery queries use stable newest-first ordering and return 12 photos at a time. Previous/Next
+navigation replaces the current page instead of appending to it, keeping image transfer and browser
+DOM size bounded as the wall grows. Each page response includes the filtered total so the wall can
+show both the number currently visible and the collection size.
 
 ## LAN, public, and admin boundaries
 
@@ -103,7 +110,7 @@ helm lint chart/guest-wall
 docker build -t guestwall:local .
 ```
 
-Backend integration tests use a mocked client and cover preview creation, exact raster handling, no original persistence, visibility boundaries, print failure and ambiguity, idempotent confirmation/reprints, expiry cleanup, admin changes/deletion, and restart persistence. Frontend tests cover the public-only boundary and the primary guest flow.
+Backend integration tests use a mocked client and cover preview creation, exact raster handling, no original persistence, visibility boundaries, newest-first pagination, print failure and ambiguity, idempotent confirmation/reprints, expiry cleanup, admin changes/deletion, and restart persistence. Frontend tests cover the public-only boundary, bounded page navigation, mobile gallery loading, and the primary guest flow.
 
 CI runs formatting, linting, strict type checking, tests, the production frontend build, Helm lint/render, and a container build. Main and version tags publish multi-platform `linux/amd64` and `linux/arm64` images to GHCR.
 

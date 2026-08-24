@@ -13,6 +13,7 @@ class PreviewCreated(BaseModel):
 
 class ConfirmPreview(BaseModel):
     visibility: Visibility
+    print: bool = True
 
 
 class PhotoView(BaseModel):
@@ -28,6 +29,7 @@ class PhotoView(BaseModel):
 class PhotoPage(BaseModel):
     items: list[PhotoView]
     next_offset: int | None
+    total: int
 
 
 class VisibilityUpdate(BaseModel):

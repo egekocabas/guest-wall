@@ -11,10 +11,16 @@ from guestwall.models import Photo, PreviewSession, utcnow
 from .conftest import ENHANCED, EXACT, MockPrinter
 
 
-def confirm(client: TestClient, preview_id: str, visibility: str = "public"):
+def confirm(
+    client: TestClient,
+    preview_id: str,
+    visibility: str = "public",
+    *,
+    print_photo: bool = True,
+):
     return client.post(
         f"/api/previews/{preview_id}/confirm",
-        json={"visibility": visibility},
+        json={"visibility": visibility, "print": print_photo},
     )
 
 
@@ -74,6 +80,37 @@ def test_confirmation_prints_exact_raster_and_is_idempotent(
     assert not (data_dir / "previews" / preview_id).exists()
 
 
+def test_wall_only_confirmation_skips_printer_and_is_idempotent(
+    client: TestClient, create_preview, printer: MockPrinter, data_dir: Path
+) -> None:
+    preview_id = create_preview()
+    first = confirm(client, preview_id, print_photo=False)
+    second = confirm(client, preview_id, print_photo=False)
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["print_status"] == "not_printed"
+    assert second.headers["idempotency-replayed"] == "true"
+    assert printer.print_inputs == []
+    assert (data_dir / "photos" / preview_id / "preview.png").read_bytes() == ENHANCED
+    assert (data_dir / "photos" / preview_id / "print.png").read_bytes() == EXACT
+    with client.app.state.database.sessions() as session:
+        photo = session.get(Photo, preview_id)
+        assert photo is not None
+        assert photo.printed_at is None
+
+    response = client.post(
+        f"/api/admin/photos/{preview_id}/reprint",
+        headers={"Idempotency-Key": "first-print-after-wall-only"},
+    )
+    assert response.status_code == 204
+    assert printer.print_inputs == [EXACT]
+    with client.app.state.database.sessions() as session:
+        photo = session.get(Photo, preview_id)
+        assert photo is not None
+        assert photo.print_status == "printed"
+        assert photo.printed_at is not None
+
+
 def test_public_boundary_does_not_list_or_serve_private_photo(
     client: TestClient, create_preview
 ) -> None:
@@ -82,12 +119,40 @@ def test_public_boundary_does_not_list_or_serve_private_photo(
     public_id = create_preview()
     assert confirm(client, public_id, "public").status_code == 200
 
-    lan = client.get("/api/photos").json()["items"]
-    public = client.get("/api/public/photos").json()["items"]
+    lan_page = client.get("/api/photos").json()
+    public_page = client.get("/api/public/photos").json()
+    lan = lan_page["items"]
+    public = public_page["items"]
     assert {item["id"] for item in lan} == {private_id, public_id}
     assert [item["id"] for item in public] == [public_id]
+    assert lan_page["total"] == 2
+    assert public_page["total"] == 1
     assert client.get(f"/api/public/photos/{private_id}/image").status_code == 404
     assert client.get(f"/api/public/photos/{public_id}/image").content == ENHANCED
+
+
+def test_wall_paginates_newest_photos_first(client: TestClient, create_preview) -> None:
+    photo_ids = [create_preview(bytes([index])) for index in range(3)]
+    for photo_id in photo_ids:
+        assert confirm(client, photo_id, print_photo=False).status_code == 200
+
+    base_time = utcnow()
+    with client.app.state.database.sessions() as session:
+        for index, photo_id in enumerate(photo_ids):
+            photo = session.get(Photo, photo_id)
+            assert photo is not None
+            photo.created_at = base_time + timedelta(seconds=index)
+        session.commit()
+
+    first_page = client.get("/api/photos?offset=0&limit=2").json()
+    second_page = client.get("/api/photos?offset=2&limit=2").json()
+
+    assert [photo["id"] for photo in first_page["items"]] == photo_ids[::-1][:2]
+    assert first_page["next_offset"] == 2
+    assert first_page["total"] == 3
+    assert [photo["id"] for photo in second_page["items"]] == [photo_ids[0]]
+    assert second_page["next_offset"] is None
+    assert second_page["total"] == 3
 
 
 def test_public_host_rejects_lan_and_admin_routes(client: TestClient) -> None:

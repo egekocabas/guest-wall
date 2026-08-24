@@ -11,6 +11,7 @@ export interface Photo {
 export interface PhotoPage {
   items: Photo[];
   next_offset: number | null;
+  total: number;
 }
 
 export interface Preview {
@@ -49,9 +50,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  listPhotos(publicOnly: boolean, offset = 0): Promise<PhotoPage> {
+  listPhotos(publicOnly: boolean, offset = 0, limit = 12): Promise<PhotoPage> {
     const base = publicOnly ? "/api/public/photos" : "/api/photos";
-    return request(`${base}?offset=${offset}&limit=24`);
+    return request(`${base}?offset=${offset}&limit=${limit}`);
   },
   listAdminPhotos(offset = 0): Promise<PhotoPage> {
     return request(`/api/admin/photos?offset=${offset}&limit=50`);
@@ -63,11 +64,11 @@ export const api = {
     if (time) data.append("time", time);
     return request("/api/previews", { method: "POST", body: data });
   },
-  confirmPreview(previewId: string, visibility: Visibility): Promise<Photo> {
+  confirmPreview(previewId: string, visibility: Visibility, printPhoto = true): Promise<Photo> {
     return request(`/api/previews/${previewId}/confirm`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visibility }),
+      body: JSON.stringify({ visibility, print: printPhoto }),
     });
   },
   deletePreview(previewId: string): Promise<void> {
