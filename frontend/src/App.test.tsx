@@ -19,8 +19,47 @@ describe("Guestwall", () => {
       );
     render(<App modeOverride="public" />);
     expect(await screen.findByText("The wall is waiting.")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith("/api/public/photos?offset=0&limit=24", undefined);
+    expect(fetchMock).toHaveBeenCalledWith("/api/public/photos?offset=0&limit=12", undefined);
     expect(screen.queryByLabelText("Take a photo")).not.toBeInTheDocument();
+  });
+
+  it("paginates the wall without retaining earlier pages", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      const offset = new URL(url, "http://guestwall.test").searchParams.get("offset");
+      const indexes = offset === "12" ? [12] : Array.from({ length: 12 }, (_, index) => index);
+      return new Response(
+        JSON.stringify({
+          items: indexes.map((index) => ({
+            id: `page-photo-${index}`,
+            created_at: `2026-08-24T16:${String(59 - index).padStart(2, "0")}:00Z`,
+            visibility: "public",
+            print_status: "printed",
+            image_url: `/page-photo-${index}.png`,
+          })),
+          next_offset: offset === "12" ? null : 12,
+        }),
+      );
+    });
+
+    const user = userEvent.setup();
+    const { container } = render(<App modeOverride="public" />);
+    expect(await screen.findByText("12 shown")).toBeInTheDocument();
+    expect(screen.getByText("Page 1")).toHaveAttribute("aria-current", "page");
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText("1 shown")).toBeInTheDocument();
+    expect(screen.getByText("Page 2")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "A thermal Guestwall memory" })).toHaveAttribute(
+      "src",
+      "/page-photo-12.png",
+    );
+    expect(container.querySelector('img[src="/page-photo-0.png"]')).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/public/photos?offset=12&limit=12", undefined);
+
+    await user.click(screen.getByRole("button", { name: "Previous" }));
+    expect(await screen.findByText("12 shown")).toBeInTheDocument();
+    expect(screen.getByText("Page 1")).toBeInTheDocument();
   });
 
   it("keeps gallery order and eagerly loads the first visible photos", async () => {

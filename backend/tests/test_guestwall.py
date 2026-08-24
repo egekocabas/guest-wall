@@ -127,6 +127,28 @@ def test_public_boundary_does_not_list_or_serve_private_photo(
     assert client.get(f"/api/public/photos/{public_id}/image").content == ENHANCED
 
 
+def test_wall_paginates_newest_photos_first(client: TestClient, create_preview) -> None:
+    photo_ids = [create_preview(bytes([index])) for index in range(3)]
+    for photo_id in photo_ids:
+        assert confirm(client, photo_id, print_photo=False).status_code == 200
+
+    base_time = utcnow()
+    with client.app.state.database.sessions() as session:
+        for index, photo_id in enumerate(photo_ids):
+            photo = session.get(Photo, photo_id)
+            assert photo is not None
+            photo.created_at = base_time + timedelta(seconds=index)
+        session.commit()
+
+    first_page = client.get("/api/photos?offset=0&limit=2").json()
+    second_page = client.get("/api/photos?offset=2&limit=2").json()
+
+    assert [photo["id"] for photo in first_page["items"]] == photo_ids[::-1][:2]
+    assert first_page["next_offset"] == 2
+    assert [photo["id"] for photo in second_page["items"]] == [photo_ids[0]]
+    assert second_page["next_offset"] is None
+
+
 def test_public_host_rejects_lan_and_admin_routes(client: TestClient) -> None:
     headers = {"Host": "public.test"}
     assert client.get("/api/photos", headers=headers).status_code == 404

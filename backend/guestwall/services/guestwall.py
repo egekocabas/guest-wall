@@ -267,7 +267,12 @@ class GuestwallService:
         offset: int,
         limit: int,
     ) -> tuple[list[Photo], int | None]:
-        statement = select(Photo).order_by(Photo.created_at.desc()).offset(offset).limit(limit + 1)
+        statement = (
+            select(Photo)
+            .order_by(Photo.created_at.desc(), Photo.id.desc())
+            .offset(offset)
+            .limit(limit + 1)
+        )
         if public_only:
             statement = statement.where(Photo.visibility == Visibility.PUBLIC.value)
         photos = list(session.scalars(statement))

@@ -33,6 +33,10 @@ Confirmation atomically claims `ready`/`failed` so only one request can finalize
 
 Admin reprints require an `Idempotency-Key`; repeating the same key never produces a second reprint.
 
+Gallery queries use stable newest-first ordering and return 12 photos at a time. Previous/Next
+navigation replaces the current page instead of appending to it, keeping image transfer and browser
+DOM size bounded as the wall grows.
+
 ## LAN, public, and admin boundaries
 
 - LAN host: full gallery, private images, uploads, previewing, printing, and admin routes.
@@ -105,7 +109,7 @@ helm lint chart/guest-wall
 docker build -t guestwall:local .
 ```
 
-Backend integration tests use a mocked client and cover preview creation, exact raster handling, no original persistence, visibility boundaries, print failure and ambiguity, idempotent confirmation/reprints, expiry cleanup, admin changes/deletion, and restart persistence. Frontend tests cover the public-only boundary and the primary guest flow.
+Backend integration tests use a mocked client and cover preview creation, exact raster handling, no original persistence, visibility boundaries, newest-first pagination, print failure and ambiguity, idempotent confirmation/reprints, expiry cleanup, admin changes/deletion, and restart persistence. Frontend tests cover the public-only boundary, bounded page navigation, mobile gallery loading, and the primary guest flow.
 
 CI runs formatting, linting, strict type checking, tests, the production frontend build, Helm lint/render, and a container build. Main and version tags publish multi-platform `linux/amd64` and `linux/arm64` images to GHCR.
 

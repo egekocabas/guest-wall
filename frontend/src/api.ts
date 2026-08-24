@@ -49,9 +49,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  listPhotos(publicOnly: boolean, offset = 0): Promise<PhotoPage> {
+  listPhotos(publicOnly: boolean, offset = 0, limit = 12): Promise<PhotoPage> {
     const base = publicOnly ? "/api/public/photos" : "/api/photos";
-    return request(`${base}?offset=${offset}&limit=24`);
+    return request(`${base}?offset=${offset}&limit=${limit}`);
   },
   listAdminPhotos(offset = 0): Promise<PhotoPage> {
     return request(`/api/admin/photos?offset=${offset}&limit=50`);
