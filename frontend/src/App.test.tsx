@@ -23,6 +23,22 @@ describe("Guestwall", () => {
     expect(screen.queryByLabelText("Take a photo")).not.toBeInTheDocument();
   });
 
+  it("links the LAN homepage header to the GitHub repository", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+      String(input) === "/api/printer/status"
+        ? new Response(JSON.stringify({ online: true }))
+        : new Response(JSON.stringify({ items: [], next_offset: null, total: 0 })),
+    );
+
+    render(<App modeOverride="lan" />);
+    expect(await screen.findByText("The wall is waiting.")).toBeInTheDocument();
+    const github = screen.getByRole("link", { name: "Open Guestwall on GitHub" });
+    expect(github).toHaveAttribute("href", "https://github.com/egekocabas/guest-wall");
+    expect(github).toHaveAttribute("target", "_blank");
+    expect(github).toHaveAttribute("rel", "noreferrer");
+    expect(screen.queryByText("Tiny paper memories")).not.toBeInTheDocument();
+  });
+
   it("paginates the wall without retaining earlier pages", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
