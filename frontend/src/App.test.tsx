@@ -21,6 +21,11 @@ describe("Guestwall", () => {
     expect(await screen.findByText("The wall is waiting.")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/public/photos?offset=0&limit=12", undefined);
     expect(screen.queryByLabelText("Take a photo")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Guestwall on GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/egekocabas/guest-wall",
+    );
+    expect(screen.queryByText("From our home to yours")).not.toBeInTheDocument();
   });
 
   it("links the LAN homepage header to the GitHub repository", async () => {
