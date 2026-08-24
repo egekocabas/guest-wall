@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "guest-wall.fullname" . }}
+  labels:
+    {{- include "guest-wall.labels" . | nindent 4 }}
+data:
+  DATA_DIR: /data
+  PRINTER_AGENT_URL: {{ required "printerAgent.url is required" .Values.printerAgent.url | quote }}
+  PRINTER_TIMEOUT_SECONDS: {{ .Values.printerAgent.timeoutSeconds | quote }}
+  PUBLIC_HOST: {{ .Values.app.publicHost | quote }}
+  MAX_UPLOAD_BYTES: {{ .Values.app.maxUploadBytes | quote }}
+  PREVIEW_TTL_SECONDS: {{ .Values.app.previewTtlSeconds | quote }}
+  PREVIEW_CLEANUP_INTERVAL_SECONDS: {{ .Values.app.cleanupIntervalSeconds | quote }}
+  LOG_LEVEL: {{ .Values.app.logLevel | quote }}
+

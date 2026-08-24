@@ -1,0 +1,46 @@
+# Reference values following the pi16 GitOps conventions. The homelab-infra
+# repository owns the actual desired state, secret, and immutable image digest.
+replicaCount: 1
+
+image:
+  repository: ghcr.io/egekocabas/guest-wall
+  tag: main
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: ghcr-guest-wall
+
+printerAgent:
+  url: http://192.168.178.100:8001
+  timeoutSeconds: 30
+
+app:
+  publicHost: guest-wall.egekocabas.com
+
+ingress:
+  lan:
+    enabled: true
+    host: guest-wall.home.egekocabas.com
+  public:
+    enabled: true
+    host: guest-wall.egekocabas.com
+
+admin:
+  basicAuthMiddleware: observability-observability-ui-auth@kubernetescrd
+
+persistence:
+  enabled: true
+  storageClass: local-path
+  size: 10Gi
+
+networkPolicy:
+  enabled: true
+  printerAgent:
+    enabled: true
+    cidr: 192.168.178.100/32
+    port: 8001
+
+serviceMonitor:
+  enabled: true
+
