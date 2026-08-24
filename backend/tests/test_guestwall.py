@@ -1,0 +1,170 @@
+from datetime import timedelta
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+
+from guestwall.config import Settings
+from guestwall.main import create_app
+from guestwall.models import Photo, PreviewSession, utcnow
+
+from .conftest import ENHANCED, EXACT, MockPrinter
+
+
+def confirm(client: TestClient, preview_id: str, visibility: str = "public"):
+    return client.post(
+        f"/api/previews/{preview_id}/confirm",
+        json={"visibility": visibility},
+    )
+
+
+def test_preview_keeps_only_prepared_outputs(
+    client: TestClient,
+    create_preview,
+    data_dir: Path,
+    printer: MockPrinter,
+) -> None:
+    original = b"unique original phone image with exif and gps"
+    preview_id = create_preview(original)
+    assert printer.preview_inputs == [original]
+    assert client.get(f"/api/previews/{preview_id}/image").content == ENHANCED
+    assert (data_dir / "previews" / preview_id / "preview.png").read_bytes() == ENHANCED
+    assert (data_dir / "previews" / preview_id / "print.png").read_bytes() == EXACT
+    assert not any(
+        path.suffix.lower() in {".jpg", ".jpeg", ".heic"} for path in data_dir.rglob("*")
+    )
+    assert original not in b"".join(
+        path.read_bytes() for path in data_dir.rglob("*") if path.is_file()
+    )
+
+
+def test_confirmation_prints_exact_raster_and_is_idempotent(
+    client: TestClient, create_preview, printer: MockPrinter, data_dir: Path
+) -> None:
+    preview_id = create_preview()
+    first = confirm(client, preview_id)
+    second = confirm(client, preview_id)
+    assert first.status_code == second.status_code == 200
+    assert first.json()["id"] == second.json()["id"] == preview_id
+    assert second.headers["idempotency-replayed"] == "true"
+    assert printer.print_inputs == [EXACT]
+    assert (data_dir / "photos" / preview_id / "preview.png").read_bytes() == ENHANCED
+    assert (data_dir / "photos" / preview_id / "print.png").read_bytes() == EXACT
+    assert not (data_dir / "previews" / preview_id).exists()
+
+
+def test_public_boundary_does_not_list_or_serve_private_photo(
+    client: TestClient, create_preview
+) -> None:
+    private_id = create_preview()
+    assert confirm(client, private_id, "private").status_code == 200
+    public_id = create_preview()
+    assert confirm(client, public_id, "public").status_code == 200
+
+    lan = client.get("/api/photos").json()["items"]
+    public = client.get("/api/public/photos").json()["items"]
+    assert {item["id"] for item in lan} == {private_id, public_id}
+    assert [item["id"] for item in public] == [public_id]
+    assert client.get(f"/api/public/photos/{private_id}/image").status_code == 404
+    assert client.get(f"/api/public/photos/{public_id}/image").content == ENHANCED
+
+
+def test_public_host_rejects_lan_and_admin_routes(client: TestClient) -> None:
+    headers = {"Host": "public.test"}
+    assert client.get("/api/photos", headers=headers).status_code == 404
+    assert client.post("/api/previews", headers=headers).status_code == 404
+    assert client.get("/api/admin/photos", headers=headers).status_code == 404
+    assert client.get("/api/public/photos", headers=headers).status_code == 200
+
+
+def test_print_failure_does_not_create_photo_and_can_retry(
+    client: TestClient, create_preview, printer: MockPrinter
+) -> None:
+    preview_id = create_preview()
+    printer.fail_print = True
+    failed = confirm(client, preview_id)
+    assert failed.status_code == 503
+    assert failed.json()["detail"]["retryable"] is True
+    assert client.get("/api/photos").json()["items"] == []
+    assert client.get(f"/api/previews/{preview_id}/image").status_code == 200
+
+    printer.fail_print = False
+    assert confirm(client, preview_id).status_code == 200
+    assert len(printer.print_inputs) == 2
+
+
+def test_ambiguous_print_is_not_automatically_retryable(
+    client: TestClient, create_preview, printer: MockPrinter
+) -> None:
+    preview_id = create_preview()
+    printer.fail_print = True
+    printer.ambiguous_print = True
+    first = confirm(client, preview_id)
+    second = confirm(client, preview_id)
+    assert first.status_code == 503
+    assert second.status_code == 409
+    assert len(printer.print_inputs) == 1
+    assert client.get("/api/photos").json()["items"] == []
+
+
+def test_expired_preview_is_removed(client: TestClient, create_preview, data_dir: Path) -> None:
+    preview_id = create_preview()
+    database = client.app.state.database
+    with database.sessions() as session:
+        record = session.get(PreviewSession, preview_id)
+        assert record is not None
+        record.expires_at = utcnow() - timedelta(seconds=1)
+        session.commit()
+    response = confirm(client, preview_id)
+    assert response.status_code == 410
+    assert not (data_dir / "previews" / preview_id).exists()
+    with database.sessions() as session:
+        assert session.get(PreviewSession, preview_id) is None
+
+
+def test_admin_visibility_delete_and_reprint_are_safe(
+    client: TestClient, create_preview, printer: MockPrinter, data_dir: Path
+) -> None:
+    photo_id = create_preview()
+    assert confirm(client, photo_id, "private").status_code == 200
+    changed = client.patch(f"/api/admin/photos/{photo_id}", json={"visibility": "public"})
+    assert changed.status_code == 200
+    assert client.get(f"/api/public/photos/{photo_id}/image").status_code == 200
+
+    headers = {"Idempotency-Key": "same-admin-operation"}
+    assert client.post(f"/api/admin/photos/{photo_id}/reprint", headers=headers).status_code == 204
+    assert client.post(f"/api/admin/photos/{photo_id}/reprint", headers=headers).status_code == 204
+    assert printer.print_inputs == [EXACT, EXACT]
+
+    assert client.delete(f"/api/admin/photos/{photo_id}").status_code == 204
+    assert client.get(f"/api/photos/{photo_id}/image").status_code == 404
+    assert not (data_dir / "photos" / photo_id).exists()
+
+
+def test_database_and_images_survive_application_restart(
+    settings: Settings, printer: MockPrinter
+) -> None:
+    first_app = create_app(settings, printer, auto_create_schema=True)  # type: ignore[arg-type]
+    with TestClient(first_app) as first:
+        response = first.post(
+            "/api/previews", files={"image": ("phone.jpg", b"original", "image/jpeg")}
+        )
+        photo_id = response.json()["preview_id"]
+        assert confirm(first, photo_id).status_code == 200
+
+    second_app = create_app(settings, printer, auto_create_schema=False)  # type: ignore[arg-type]
+    with TestClient(second_app) as second:
+        photos = second.get("/api/photos").json()["items"]
+        assert [photo["id"] for photo in photos] == [photo_id]
+        assert second.get(f"/api/photos/{photo_id}/image").content == ENHANCED
+        with second.app.state.database.sessions() as session:
+            assert session.scalar(select(Photo).where(Photo.id == photo_id)) is not None
+
+
+def test_delete_abandoned_preview_cleans_files(
+    client: TestClient, create_preview, data_dir: Path
+) -> None:
+    preview_id = create_preview()
+    assert client.delete(f"/api/previews/{preview_id}").status_code == 204
+    assert not (data_dir / "previews" / preview_id).exists()
+    assert client.get(f"/api/previews/{preview_id}/image").status_code == 404
