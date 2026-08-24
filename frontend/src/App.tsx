@@ -48,9 +48,6 @@ export function App({ modeOverride }: { modeOverride?: AppMode }) {
         </section>
       )}
       <Gallery publicOnly={mode === "public"} refreshToken={refreshToken} />
-      <footer className="border-t border-ink/10 px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8 text-center font-mono text-[0.65rem] uppercase leading-4 tracking-[0.12em] text-ink/45 sm:px-6 sm:tracking-widest">
-        Original photos are never kept · only their thermal versions live here
-      </footer>
     </main>
   );
 }

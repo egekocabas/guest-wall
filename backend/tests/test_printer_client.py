@@ -94,3 +94,57 @@ def test_invalid_printer_preview_is_translated() -> None:
         assert caught.value.code == "invalid_printer_response"
     finally:
         asyncio.run(client.close())
+
+
+def test_print_failure_includes_printer_agent_reason() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/print/prepared-image"
+        return httpx.Response(
+            503,
+            json={"detail": "Configured USB printer is unavailable"},
+        )
+
+    client = client_with(httpx.MockTransport(handler))
+    try:
+        with pytest.raises(PrinterAgentError) as caught:
+            asyncio.run(client.print_prepared(EXACT))
+        assert str(caught.value) == (
+            "The printer reported an error: Configured USB printer is unavailable. "
+            "Your photo was not added to the wall."
+        )
+        assert caught.value.code == "print_failed"
+        assert caught.value.retryable is True
+        assert caught.value.ambiguous is False
+    finally:
+        asyncio.run(client.close())
+
+
+def test_rejected_prepared_print_does_not_blame_original_photo() -> None:
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"detail": "Prepared image must be a 1-bit PNG"})
+
+    client = client_with(httpx.MockTransport(handler))
+    try:
+        with pytest.raises(PrinterAgentError) as caught:
+            asyncio.run(client.print_prepared(EXACT))
+        assert str(caught.value) == (
+            "The printer service rejected the prepared print: Prepared image must be a 1-bit PNG. "
+            "Your original photo is not the problem."
+        )
+        assert caught.value.code == "print_request_rejected"
+        assert caught.value.retryable is False
+    finally:
+        asyncio.run(client.close())
+
+
+@pytest.mark.parametrize("reachable, expected", [(True, True), (False, False)])
+def test_printer_health_uses_hardware_reachability(reachable: bool, expected: bool) -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/printer/status"
+        return httpx.Response(200, json={"reachable": reachable})
+
+    client = client_with(httpx.MockTransport(handler))
+    try:
+        assert asyncio.run(client.healthy()) is expected
+    finally:
+        asyncio.run(client.close())

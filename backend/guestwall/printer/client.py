@@ -105,8 +105,23 @@ class PrinterAgentClient:
                 ambiguous=True,
             ) from exc
         except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code
+            detail = self._error_detail(exc.response)
+            if status_code in {400, 413, 415, 422}:
+                message = "The printer service rejected the prepared print"
+                if detail:
+                    message += f": {detail}"
+                raise PrinterAgentError(
+                    f"{message}. Your original photo is not the problem.",
+                    code="print_request_rejected",
+                    retryable=False,
+                ) from exc
+
+            message = "The printer reported an error"
+            if detail:
+                message += f": {detail}"
             raise PrinterAgentError(
-                "The printer could not print this photo.",
+                f"{message}. Your photo was not added to the wall.",
                 code="print_failed",
                 retryable=True,
             ) from exc
@@ -126,10 +141,23 @@ class PrinterAgentClient:
 
     async def healthy(self) -> bool:
         try:
-            response = await self._client.get("/health", timeout=3)
-            return response.is_success
-        except httpx.RequestError:
+            response = await self._client.get("/printer/status", timeout=3)
+            response.raise_for_status()
+            payload = response.json()
+            return payload.get("reachable") is True
+        except (httpx.HTTPError, ValueError, AttributeError):
             return False
+
+    @staticmethod
+    def _error_detail(response: httpx.Response) -> str | None:
+        try:
+            detail = response.json().get("detail")
+        except (ValueError, AttributeError):
+            return None
+        if not isinstance(detail, str):
+            return None
+        cleaned = " ".join(detail.split()).strip().rstrip(".")
+        return cleaned[:200] or None
 
     @staticmethod
     def _decode_png(value: object) -> bytes:

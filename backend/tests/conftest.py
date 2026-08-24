@@ -40,7 +40,7 @@ class MockPrinter:
         self.print_inputs.append(image)
         if self.fail_print:
             raise PrinterAgentError(
-                "The printer could not print this photo.",
+                "The printer reported an error. Your photo was not added to the wall.",
                 code="print_failed",
                 retryable=True,
                 ambiguous=self.ambiguous_print,

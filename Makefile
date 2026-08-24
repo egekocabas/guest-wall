@@ -6,10 +6,10 @@ install:
 	cd frontend && npm ci
 
 dev-backend:
-	cd backend && DATA_DIR=./data PRINTER_AGENT_URL=http://localhost:8001 ../.venv/bin/alembic upgrade head && DATA_DIR=./data PRINTER_AGENT_URL=http://localhost:8001 ../.venv/bin/uvicorn guestwall.main:app --reload
+	cd backend && ../.venv/bin/alembic upgrade head && ../.venv/bin/uvicorn guestwall.main:app --reload
 
 dev-frontend:
-	cd frontend && npm run dev
+	cd frontend && npm run dev -- --host 0.0.0.0
 
 test:
 	cd backend && ../.venv/bin/pytest
