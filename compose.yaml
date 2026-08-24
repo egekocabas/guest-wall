@@ -1,0 +1,28 @@
+services:
+  guestwall:
+    build: .
+    environment:
+      DATA_DIR: /data
+      PRINTER_AGENT_URL: http://mock-printer:8001
+      PUBLIC_HOST: guest-wall.egekocabas.com
+    ports:
+      - "8000:8000"
+    volumes:
+      - guestwall-data:/data
+    depends_on:
+      mock-printer:
+        condition: service_healthy
+
+  mock-printer:
+    build: .
+    command: ["uvicorn", "tools.mock_printer:app", "--host", "0.0.0.0", "--port", "8001"]
+    entrypoint: []
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+volumes:
+  guestwall-data:
+

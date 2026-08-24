@@ -1,0 +1,8 @@
+Guestwall is installed as {{ include "guest-wall.fullname" . }}.
+{{- if not .Values.ingress.lan.enabled }}
+LAN ingress is disabled. Set ingress.lan.enabled=true and configure the host and Basic Auth middleware.
+{{- end }}
+{{- if not .Values.ingress.public.enabled }}
+Public ingress is disabled. Set ingress.public.enabled=true after configuring app.publicHost.
+{{- end }}
+

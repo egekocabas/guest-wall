@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "replicaCount": { "const": 1 },
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag", "digest", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$" },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "printerAgent": {
+      "type": "object",
+      "required": ["url", "timeoutSeconds"],
+      "properties": {
+        "url": { "type": "string", "pattern": "^https?://" },
+        "timeoutSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 120 }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "required": ["enabled", "size"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "size": { "type": "string", "pattern": "^[1-9][0-9]*(Mi|Gi|Ti)$" }
+      }
+    },
+    "admin": {
+      "type": "object",
+      "required": ["basicAuthMiddleware"],
+      "properties": {
+        "basicAuthMiddleware": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?-[a-z0-9]([-a-z0-9]*[a-z0-9])?@kubernetescrd$"
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "required": ["requests", "limits"]
+    }
+  },
+  "required": ["replicaCount", "image", "printerAgent", "persistence", "admin", "resources"]
+}
+

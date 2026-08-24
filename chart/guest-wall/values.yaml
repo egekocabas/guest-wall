@@ -1,0 +1,102 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/egekocabas/guest-wall
+  pullPolicy: IfNotPresent
+  tag: latest
+  digest: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+printerAgent:
+  url: http://printer-agent.local:8001
+  timeoutSeconds: 30
+
+app:
+  publicHost: guest-wall.example.com
+  maxUploadBytes: 20971520
+  previewTtlSeconds: 3600
+  cleanupIntervalSeconds: 900
+  logLevel: INFO
+
+persistence:
+  enabled: true
+  storageClass: local-path
+  accessModes: [ReadWriteOnce]
+  size: 10Gi
+  existingClaim: ""
+  annotations:
+    helm.sh/resource-policy: keep
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  lan:
+    enabled: false
+    className: traefik
+    host: guest-wall.home.example.com
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+    tls: []
+  public:
+    enabled: false
+    className: traefik
+    host: guest-wall.example.com
+    annotations: {}
+    tls: []
+
+admin:
+  # Full Traefik provider reference, e.g. namespace-middleware@kubernetescrd.
+  basicAuthMiddleware: ""
+
+networkPolicy:
+  enabled: false
+  ingressNamespaceNames:
+    - kube-system
+  metricsNamespaceNames:
+    - observability
+  printerAgent:
+    enabled: false
+    cidr: 192.168.178.100/32
+    port: 8001
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  additionalLabels:
+    release: kube-prometheus-stack
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

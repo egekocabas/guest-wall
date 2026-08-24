@@ -1,0 +1,117 @@
+{{- if .Values.ingress.lan.enabled }}
+{{- if not .Values.admin.basicAuthMiddleware }}
+{{- fail "admin.basicAuthMiddleware is required when LAN ingress is enabled" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "guest-wall.fullname" . }}-lan-admin
+  labels:
+    {{- include "guest-wall.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: {{ .Values.admin.basicAuthMiddleware | quote }}
+    traefik.ingress.kubernetes.io/router.priority: "100"
+    {{- with .Values.ingress.lan.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.lan.className }}
+  rules:
+    - host: {{ .Values.ingress.lan.host }}
+      http:
+        paths:
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "guest-wall.fullname" . }}
+                port:
+                  name: http
+          - path: /api/admin
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "guest-wall.fullname" . }}
+                port:
+                  name: http
+  {{- with .Values.ingress.lan.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "guest-wall.fullname" . }}-lan
+  labels:
+    {{- include "guest-wall.labels" . | nindent 4 }}
+  {{- with .Values.ingress.lan.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.lan.className }}
+  rules:
+    - host: {{ .Values.ingress.lan.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "guest-wall.fullname" . }}
+                port:
+                  name: http
+  {{- with .Values.ingress.lan.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- if and .Values.ingress.lan.enabled .Values.ingress.public.enabled }}
+---
+{{- end }}
+{{- if .Values.ingress.public.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "guest-wall.fullname" . }}-public
+  labels:
+    {{- include "guest-wall.labels" . | nindent 4 }}
+  {{- with .Values.ingress.public.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.public.className }}
+  rules:
+    - host: {{ .Values.ingress.public.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Exact
+            backend: &publicBackend
+              service:
+                name: {{ include "guest-wall.fullname" . }}
+                port:
+                  name: http
+          - path: /favicon.svg
+            pathType: Exact
+            backend: *publicBackend
+          - path: /robots.txt
+            pathType: Exact
+            backend: *publicBackend
+          - path: /assets
+            pathType: Prefix
+            backend: *publicBackend
+          - path: /api/public
+            pathType: Prefix
+            backend: *publicBackend
+          - path: /health
+            pathType: Prefix
+            backend: *publicBackend
+  {{- with .Values.ingress.public.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+

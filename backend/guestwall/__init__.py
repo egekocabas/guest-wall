@@ -1,0 +1,1 @@
+"""Guestwall application package."""

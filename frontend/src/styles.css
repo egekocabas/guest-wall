@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #f4f0e6;
+  --color-ink: #191914;
+  --color-rust: #c84a2f;
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --shadow-paper: 0 12px 30px rgb(37 31 20 / 0.12), 0 2px 4px rgb(37 31 20 / 0.1);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    min-width: 320px;
+    background-color: var(--color-paper);
+    background-image: radial-gradient(rgb(25 25 20 / 0.045) 0.65px, transparent 0.65px);
+    background-size: 5px 5px;
+    color: var(--color-ink);
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  }
+  button,
+  label {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:focus-visible,
+  input:focus-visible,
+  label:has(input:focus-visible) {
+    outline: 3px solid var(--color-rust);
+    outline-offset: 3px;
+  }
+}
+
+@layer components {
+  .paper-card {
+    @apply rounded-2xl border border-ink/10 bg-[#fffdf7] shadow-paper;
+  }
+  .paper-photo {
+    @apply bg-[#fffdf8] p-2 pb-3 shadow-paper transition-transform duration-200 hover:-translate-y-1;
+  }
+  .primary-button {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-bold text-paper transition hover:bg-ink/85 disabled:cursor-wait disabled:opacity-60;
+  }
+  .secondary-button {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-ink/25 bg-white/50 px-5 py-3 text-sm font-bold transition hover:bg-white;
+  }
+  .choice {
+    @apply mt-3 flex cursor-pointer items-center gap-3 rounded-xl border border-ink/15 p-4 transition;
+  }
+  .choice-selected {
+    @apply border-ink bg-white shadow-sm;
+  }
+  .choice input {
+    @apply size-4 accent-ink;
+  }
+  .choice span {
+    @apply flex flex-col;
+  }
+  .choice strong {
+    @apply text-sm;
+  }
+  .choice small {
+    @apply mt-0.5 text-xs text-ink/55;
+  }
+}
