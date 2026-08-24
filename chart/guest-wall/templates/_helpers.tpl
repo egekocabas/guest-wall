@@ -29,7 +29,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "guest-wall.image" -}}
 {{- if .Values.image.digest -}}
-{{ printf "%s@%s" .Values.image.repository .Values.image.digest }}
+{{ printf "%s:%s@%s" .Values.image.repository .Values.image.tag .Values.image.digest }}
 {{- else -}}
 {{ printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end -}}
