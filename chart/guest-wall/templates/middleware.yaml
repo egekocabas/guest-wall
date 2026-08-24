@@ -1,0 +1,12 @@
+{{- if and .Values.ingress.lan.enabled .Values.admin.basicAuthSecret }}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "guest-wall.fullname" . }}-admin-auth
+  labels:
+    {{- include "guest-wall.labels" . | nindent 4 }}
+spec:
+  basicAuth:
+    removeHeader: true
+    secret: {{ .Values.admin.basicAuthSecret }}
+{{- end }}

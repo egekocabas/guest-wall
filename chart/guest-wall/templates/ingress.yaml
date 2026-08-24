@@ -1,6 +1,9 @@
 {{- if .Values.ingress.lan.enabled }}
-{{- if not .Values.admin.basicAuthMiddleware }}
-{{- fail "admin.basicAuthMiddleware is required when LAN ingress is enabled" }}
+{{- if and .Values.admin.basicAuthMiddleware .Values.admin.basicAuthSecret }}
+{{- fail "set only one of admin.basicAuthMiddleware or admin.basicAuthSecret" }}
+{{- end }}
+{{- if not (or .Values.admin.basicAuthMiddleware .Values.admin.basicAuthSecret) }}
+{{- fail "admin.basicAuthMiddleware or admin.basicAuthSecret is required when LAN ingress is enabled" }}
 {{- end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -9,7 +12,7 @@ metadata:
   labels:
     {{- include "guest-wall.labels" . | nindent 4 }}
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: {{ .Values.admin.basicAuthMiddleware | quote }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ include "guest-wall.adminMiddleware" . | quote }}
     traefik.ingress.kubernetes.io/router.priority: "100"
     {{- with .Values.ingress.lan.annotations }}
     {{- toYaml . | nindent 4 }}
@@ -114,4 +117,3 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 {{- end }}
-

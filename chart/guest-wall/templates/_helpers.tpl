@@ -34,3 +34,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{ printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end -}}
 {{- end }}
+
+{{- define "guest-wall.adminMiddleware" -}}
+{{- if .Values.admin.basicAuthMiddleware -}}
+{{- .Values.admin.basicAuthMiddleware -}}
+{{- else -}}
+{{- printf "%s-%s-admin-auth@kubernetescrd" .Release.Namespace (include "guest-wall.fullname" .) -}}
+{{- end -}}
+{{- end }}
