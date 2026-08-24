@@ -23,6 +23,42 @@ describe("Guestwall", () => {
     expect(screen.queryByLabelText("Take a photo")).not.toBeInTheDocument();
   });
 
+  it("keeps gallery order and eagerly loads the first visible photos", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          items: Array.from({ length: 9 }, (_, index) => ({
+            id: `photo-${index}`,
+            created_at: `2026-08-24T16:0${8 - index}:00Z`,
+            visibility: "public",
+            print_status: "printed",
+            image_url: `/photo-${index}.png`,
+          })),
+          next_offset: null,
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const { container } = render(<App modeOverride="public" />);
+    const photos = await screen.findAllByRole("img", { name: "A thermal Guestwall memory" });
+
+    expect(photos.map((photo) => photo.getAttribute("src"))).toEqual(
+      Array.from({ length: 9 }, (_, index) => `/photo-${index}.png`),
+    );
+    expect(photos[0]).toHaveAttribute("loading", "eager");
+    expect(photos[0]).toHaveAttribute("fetchpriority", "high");
+    expect(photos[0]).toHaveAttribute("width", "384");
+    expect(photos[0]).toHaveAttribute("height", "554");
+    expect(photos[7]).toHaveAttribute("loading", "eager");
+    expect(photos[8]).toHaveAttribute("loading", "lazy");
+    expect(photos[8]).toHaveAttribute("fetchpriority", "auto");
+
+    const gallery = container.querySelector(".paper-photo")?.parentElement;
+    expect(gallery).toHaveClass("grid", "grid-cols-2");
+    expect(gallery).not.toHaveClass("columns-2");
+  });
+
   it("keeps wall dates behind an accessible hover and tap control", async () => {
     const createdAt = "2026-08-24T16:00:00Z";
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {

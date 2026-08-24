@@ -7,6 +7,8 @@ interface GalleryProps {
   refreshToken?: number;
 }
 
+const EAGER_PHOTO_COUNT = 8;
+
 export function Gallery({ publicOnly = false, refreshToken = 0 }: GalleryProps) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
@@ -59,18 +61,22 @@ export function Gallery({ publicOnly = false, refreshToken = 0 }: GalleryProps) 
       ) : null}
       {error ? <p className="rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p> : null}
 
-      <div className="columns-2 gap-2.5 min-[380px]:gap-3 sm:columns-3 sm:gap-5 lg:columns-4">
+      <div className="grid grid-cols-2 items-start gap-2.5 min-[380px]:gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
         {photos.map((photo, index) => (
           <figure
             key={photo.id}
-            className="paper-photo mb-2.5 break-inside-avoid min-[380px]:mb-3 sm:mb-5"
+            className="paper-photo"
             style={{ rotate: `${((index % 5) - 2) * 0.35}deg` }}
           >
             <div className="relative">
               <img
                 src={photo.image_url}
                 alt="A thermal Guestwall memory"
-                loading="lazy"
+                width="384"
+                height="554"
+                loading={index < EAGER_PHOTO_COUNT ? "eager" : "lazy"}
+                fetchPriority={index < EAGER_PHOTO_COUNT ? "high" : "auto"}
+                decoding="async"
                 className="h-auto w-full grayscale"
               />
               <PhotoDate createdAt={photo.created_at} />
