@@ -37,7 +37,7 @@ export function Gallery({ publicOnly = false, refreshToken = 0 }: GalleryProps) 
 
   return (
     <section aria-labelledby="wall-title" className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-6">
-      <div className="mb-6 flex items-end justify-between border-b border-ink/15 pb-3">
+      <div className="mb-5 flex items-end justify-between gap-4 border-b border-ink/15 pb-3 sm:mb-6">
         <div>
           <p className="font-mono text-[0.65rem] uppercase tracking-[0.24em] text-ink/50">
             Collected moments
@@ -46,7 +46,9 @@ export function Gallery({ publicOnly = false, refreshToken = 0 }: GalleryProps) 
             The wall
           </h2>
         </div>
-        <span className="font-mono text-xs text-ink/45">{photos.length} shown</span>
+        <span className="shrink-0 pb-1 font-mono text-[0.7rem] text-ink/50 sm:text-xs">
+          {photos.length} shown
+        </span>
       </div>
 
       {!loading && photos.length === 0 && !error ? (
@@ -57,11 +59,11 @@ export function Gallery({ publicOnly = false, refreshToken = 0 }: GalleryProps) 
       ) : null}
       {error ? <p className="rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p> : null}
 
-      <div className="columns-2 gap-3 sm:columns-3 sm:gap-5 lg:columns-4">
+      <div className="columns-2 gap-2.5 min-[380px]:gap-3 sm:columns-3 sm:gap-5 lg:columns-4">
         {photos.map((photo, index) => (
           <figure
             key={photo.id}
-            className="paper-photo mb-3 break-inside-avoid sm:mb-5"
+            className="paper-photo mb-2.5 break-inside-avoid min-[380px]:mb-3 sm:mb-5"
             style={{ rotate: `${((index % 5) - 2) * 0.35}deg` }}
           >
             <img
@@ -70,7 +72,7 @@ export function Gallery({ publicOnly = false, refreshToken = 0 }: GalleryProps) 
               loading="lazy"
               className="h-auto w-full grayscale"
             />
-            <figcaption className="mt-2 flex items-center justify-between font-mono text-[0.6rem] uppercase tracking-wider text-ink/45">
+            <figcaption className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 font-mono text-[0.65rem] uppercase leading-4 tracking-[0.08em] text-ink/50 sm:text-[0.7rem] sm:tracking-wider">
               <time dateTime={photo.created_at}>
                 {new Intl.DateTimeFormat(undefined, {
                   month: "short",

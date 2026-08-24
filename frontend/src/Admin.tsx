@@ -35,13 +35,13 @@ export function Admin() {
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-4 py-8 sm:px-6">
-      <header className="mb-8 flex items-end justify-between border-b border-ink/20 pb-5">
+    <main className="mx-auto min-h-screen max-w-6xl px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pt-8">
+      <header className="mb-6 flex items-center justify-between gap-4 border-b border-ink/20 pb-4 sm:mb-8 sm:items-end sm:pb-5">
         <div>
           <p className="font-mono text-xs uppercase tracking-widest text-ink/50">Guestwall</p>
           <h1 className="font-display text-4xl font-black">Admin</h1>
         </div>
-        <a href="/" className="text-sm underline underline-offset-4">
+        <a href="/" className="tap-link -mr-3 shrink-0 text-sm underline underline-offset-4">
           Back to wall
         </a>
       </header>
@@ -53,17 +53,17 @@ export function Admin() {
       {loading ? <p>Loading…</p> : null}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {photos.map((photo) => (
-          <article key={photo.id} className="paper-card p-4">
+          <article key={photo.id} className="paper-card p-3 min-[380px]:p-4">
             <img
               src={photo.image_url}
               alt="Thermal Guestwall entry"
-              className="aspect-[3/4] w-full object-contain grayscale"
+              className="aspect-square w-full object-contain grayscale sm:aspect-[4/5]"
             />
-            <div className="mt-3 flex justify-between font-mono text-xs uppercase text-ink/55">
+            <div className="mt-3 flex flex-wrap justify-between gap-2 font-mono text-xs uppercase text-ink/55">
               <span>{photo.visibility === "public" ? "Public" : "Home only"}</span>
               <span>{photo.print_status}</span>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
               <button
                 className="secondary-button text-xs"
                 onClick={() =>
@@ -86,7 +86,7 @@ export function Admin() {
                 Reprint
               </button>
               <button
-                className="col-span-2 rounded-lg border border-red-300 px-4 py-3 text-xs font-bold uppercase tracking-wide text-red-800"
+                className="col-span-full min-h-12 rounded-lg border border-red-300 px-4 py-3 text-xs font-bold uppercase tracking-wide text-red-800 transition hover:bg-red-50"
                 onClick={() => {
                   if (window.confirm("Delete this photo permanently?"))
                     void act(() => api.deletePhoto(photo.id), "Photo deleted.");
