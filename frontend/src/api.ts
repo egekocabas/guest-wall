@@ -54,8 +54,8 @@ export const api = {
     const base = publicOnly ? "/api/public/photos" : "/api/photos";
     return request(`${base}?offset=${offset}&limit=${limit}`);
   },
-  listAdminPhotos(offset = 0): Promise<PhotoPage> {
-    return request(`/api/admin/photos?offset=${offset}&limit=50`);
+  listAdminPhotos(offset = 0, limit = 12): Promise<PhotoPage> {
+    return request(`/api/admin/photos?offset=${offset}&limit=${limit}`);
   },
   async createPreview(file: File, date?: string, time?: string): Promise<Preview> {
     const data = new FormData();

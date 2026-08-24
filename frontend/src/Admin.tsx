@@ -1,16 +1,33 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, api, type Photo } from "./api";
 
+const ADMIN_PAGE_SIZE = 12;
+
 export function Admin() {
+  const mainRef = useRef<HTMLElement>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (requestedOffset: number) => {
     setLoading(true);
     try {
-      setPhotos((await api.listAdminPhotos()).items);
+      let resolvedOffset = requestedOffset;
+      let page = await api.listAdminPhotos(resolvedOffset, ADMIN_PAGE_SIZE);
+
+      if (page.items.length === 0 && page.total > 0 && resolvedOffset >= page.total) {
+        resolvedOffset = Math.floor((page.total - 1) / ADMIN_PAGE_SIZE) * ADMIN_PAGE_SIZE;
+        page = await api.listAdminPhotos(resolvedOffset, ADMIN_PAGE_SIZE);
+      }
+
+      setPhotos(page.items);
+      setTotal(page.total);
+      setOffset(resolvedOffset);
+      setNextOffset(page.next_offset);
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : "Could not load photos.");
     } finally {
@@ -19,7 +36,7 @@ export function Admin() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void load(), 0);
+    const timer = window.setTimeout(() => void load(0), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
 
@@ -28,14 +45,22 @@ export function Admin() {
     try {
       await action();
       setMessage(success);
-      await load();
+      await load(offset);
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : "That action did not work.");
     }
   }
 
+  function showPage(requestedOffset: number) {
+    mainRef.current?.scrollIntoView?.({ block: "start" });
+    void load(requestedOffset);
+  }
+
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pt-8">
+    <main
+      ref={mainRef}
+      className="mx-auto min-h-screen max-w-6xl scroll-mt-4 px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pt-8"
+    >
       <header className="mb-6 flex items-center justify-between gap-4 border-b border-ink/20 pb-4 sm:mb-8 sm:items-end sm:pb-5">
         <div>
           <p className="font-mono text-xs uppercase tracking-widest text-ink/50">Guestwall</p>
@@ -51,6 +76,11 @@ export function Admin() {
         </p>
       ) : null}
       {loading ? <p>Loading…</p> : null}
+      {!loading ? (
+        <p className="mb-4 text-right font-mono text-xs text-ink/50">
+          {photos.length} shown / {total} total
+        </p>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {photos.map((photo) => (
           <article key={photo.id} className="paper-card p-3 min-[380px]:p-4">
@@ -98,6 +128,33 @@ export function Admin() {
           </article>
         ))}
       </div>
+      {(offset > 0 || nextOffset !== null) && !loading ? (
+        <nav
+          aria-label="Admin photo pages"
+          className="mt-8 flex items-center justify-center gap-2 sm:gap-3"
+        >
+          <button
+            className="secondary-button px-3 disabled:cursor-not-allowed disabled:opacity-40 sm:px-5"
+            disabled={offset === 0}
+            onClick={() => showPage(Math.max(0, offset - ADMIN_PAGE_SIZE))}
+          >
+            Previous
+          </button>
+          <span
+            aria-current="page"
+            className="min-w-18 text-center font-mono text-xs uppercase tracking-wider text-ink/55"
+          >
+            Page {Math.floor(offset / ADMIN_PAGE_SIZE) + 1}
+          </span>
+          <button
+            className="secondary-button px-3 disabled:cursor-not-allowed disabled:opacity-40 sm:px-5"
+            disabled={nextOffset === null}
+            onClick={() => nextOffset !== null && showPage(nextOffset)}
+          >
+            Next
+          </button>
+        </nav>
+      ) : null}
     </main>
   );
 }
