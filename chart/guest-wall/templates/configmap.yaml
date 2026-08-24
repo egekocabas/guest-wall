@@ -9,8 +9,7 @@ data:
   PRINTER_AGENT_URL: {{ required "printerAgent.url is required" .Values.printerAgent.url | quote }}
   PRINTER_TIMEOUT_SECONDS: {{ .Values.printerAgent.timeoutSeconds | quote }}
   PUBLIC_HOST: {{ .Values.app.publicHost | quote }}
-  MAX_UPLOAD_BYTES: {{ .Values.app.maxUploadBytes | quote }}
-  PREVIEW_TTL_SECONDS: {{ .Values.app.previewTtlSeconds | quote }}
-  PREVIEW_CLEANUP_INTERVAL_SECONDS: {{ .Values.app.cleanupIntervalSeconds | quote }}
+  MAX_UPLOAD_BYTES: {{ .Values.app.maxUploadBytes | int64 | quote }}
+  PREVIEW_TTL_SECONDS: {{ .Values.app.previewTtlSeconds | int64 | quote }}
+  PREVIEW_CLEANUP_INTERVAL_SECONDS: {{ .Values.app.cleanupIntervalSeconds | int64 | quote }}
   LOG_LEVEL: {{ .Values.app.logLevel | quote }}
-
