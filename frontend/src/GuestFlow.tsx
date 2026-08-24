@@ -98,10 +98,10 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
 
   return (
     <section
-      className="mx-auto w-full max-w-xl px-4 pb-16 pt-5 sm:px-6 sm:pt-10"
+      className="mx-auto w-full max-w-xl px-4 pb-12 pt-2 sm:px-6 sm:pb-16 sm:pt-8"
       aria-labelledby="contribute-title"
     >
-      <div className="paper-card overflow-hidden p-5 sm:p-8">
+      <div className="paper-card overflow-hidden p-5 min-[380px]:p-6 sm:p-8">
         {phase === "choose" ? (
           <div className="text-center">
             <p className="mb-3 font-mono text-[0.65rem] uppercase tracking-[0.26em] text-ink/50">
@@ -109,7 +109,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
             </p>
             <h1
               id="contribute-title"
-              className="font-display text-4xl font-black leading-none tracking-tight sm:text-5xl"
+              className="font-display text-[2.35rem] font-black leading-[0.95] tracking-tight min-[380px]:text-4xl sm:text-5xl"
             >
               Leave a little
               <br />
@@ -160,7 +160,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
             </p>
             <h1
               id="contribute-title"
-              className="mt-2 font-display text-3xl font-black tracking-tight sm:text-4xl"
+              className="mt-2 font-display text-3xl font-black leading-tight tracking-tight sm:text-4xl"
             >
               Add a timestamp?
             </h1>
@@ -199,7 +199,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
               {phase === "preparing" ? "Preparing your print…" : "Create preview"}
             </button>
             <button
-              className="mt-4 w-full text-sm text-ink/55 underline underline-offset-4"
+              className="quiet-action mt-2"
               disabled={phase === "preparing"}
               onClick={() => void reset()}
             >
@@ -213,7 +213,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
             <p className="font-mono text-[0.65rem] uppercase tracking-[0.26em] text-ink/50">
               This will be printed
             </p>
-            <div className="mx-auto my-5 max-w-sm bg-white p-3 pb-5 shadow-paper">
+            <div className="mx-auto my-5 max-w-sm overflow-hidden bg-white p-3 pb-5 shadow-paper">
               <img
                 src={preview.preview_url}
                 alt="Your thermal print preview"
@@ -257,7 +257,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
               {phase === "printing" ? "Printing…" : "Print & add to wall"}
             </button>
             <button
-              className="mt-4 w-full text-sm text-ink/55 underline underline-offset-4"
+              className="quiet-action mt-2"
               disabled={phase === "printing"}
               onClick={() => void reset()}
             >

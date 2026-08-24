@@ -22,22 +22,22 @@ export function App({ modeOverride }: { modeOverride?: AppMode }) {
 
   return (
     <main className="min-h-screen">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
-        <a href="/" className="font-display text-2xl font-black tracking-tight">
+      <header className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-1 py-3 sm:px-3 sm:py-4">
+        <a href="/" className="tap-link font-display text-2xl font-black tracking-tight">
           Guestwall<span className="text-rust">.</span>
         </a>
-        <p className="font-mono text-[0.6rem] uppercase tracking-[0.2em] text-ink/50">
+        <p className="max-w-36 pr-3 text-right font-mono text-[0.6rem] uppercase leading-4 tracking-[0.16em] text-ink/50 sm:max-w-none sm:tracking-[0.2em]">
           {mode === "public" ? "From our home to yours" : "Tiny paper memories"}
         </p>
       </header>
       {mode === "lan" ? (
         <GuestFlow onAdded={() => setRefreshToken((value) => value + 1)} />
       ) : (
-        <section className="mx-auto max-w-3xl px-4 py-10 text-center sm:py-16">
+        <section className="mx-auto max-w-3xl px-4 py-8 text-center sm:px-6 sm:py-16">
           <p className="font-mono text-[0.65rem] uppercase tracking-[0.28em] text-ink/50">
             A living collection
           </p>
-          <h1 className="mt-3 font-display text-5xl font-black leading-[0.95] tracking-tight sm:text-7xl">
+          <h1 className="mt-3 font-display text-[2.75rem] font-black leading-[0.95] tracking-tight min-[380px]:text-5xl sm:text-7xl">
             Moments made
             <br />
             to fade slowly.
@@ -48,7 +48,7 @@ export function App({ modeOverride }: { modeOverride?: AppMode }) {
         </section>
       )}
       <Gallery publicOnly={mode === "public"} refreshToken={refreshToken} />
-      <footer className="border-t border-ink/10 px-4 py-8 text-center font-mono text-[0.6rem] uppercase tracking-widest text-ink/40">
+      <footer className="border-t border-ink/10 px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8 text-center font-mono text-[0.65rem] uppercase leading-4 tracking-[0.12em] text-ink/45 sm:px-6 sm:tracking-widest">
         Original photos are never kept · only their thermal versions live here
       </footer>
     </main>
