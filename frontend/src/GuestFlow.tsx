@@ -204,10 +204,6 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
               <br />
               piece of today.
             </h1>
-            <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-ink/60">
-              Choose a photo. You’ll see exactly how its tiny paper version will look before it
-              prints.
-            </p>
             {printerOnline === false ? (
               <p
                 role="status"
