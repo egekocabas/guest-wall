@@ -7,6 +7,7 @@ from sqlalchemy import select
 from guestwall.config import Settings
 from guestwall.main import create_app
 from guestwall.models import Photo, PreviewSession, utcnow
+from guestwall.printer import PrinterAgentStatus, PrinterHardwareStatus
 
 from .conftest import ENHANCED, EXACT, MockPrinter
 
@@ -22,6 +23,21 @@ def confirm(
         f"/api/previews/{preview_id}/confirm",
         json={"visibility": visibility, "print": print_photo},
     )
+
+
+def test_printer_status_exposes_generic_hardware_state(
+    client: TestClient,
+    printer: MockPrinter,
+) -> None:
+    printer.printer_status = PrinterAgentStatus(
+        reachable=True,
+        hardware_status=PrinterHardwareStatus.PAPER_OUT,
+    )
+
+    assert client.get("/api/printer/status").json() == {
+        "online": True,
+        "hardware_status": "paper_out",
+    }
 
 
 def test_preview_keeps_only_prepared_outputs(

@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from guestwall.models import Visibility
+from guestwall.printer import PrinterHardwareStatus
 
 
 class PreviewCreated(BaseModel):
@@ -38,6 +39,7 @@ class VisibilityUpdate(BaseModel):
 
 class PrinterStatus(BaseModel):
     online: bool
+    hardware_status: PrinterHardwareStatus | None
 
 
 class ErrorDetail(BaseModel):

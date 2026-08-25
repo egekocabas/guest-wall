@@ -4,7 +4,11 @@ import base64
 import httpx
 import pytest
 
-from guestwall.printer import PrinterAgentClient, PrinterAgentError
+from guestwall.printer import (
+    PrinterAgentClient,
+    PrinterAgentError,
+    PrinterHardwareStatus,
+)
 
 from .conftest import ENHANCED, EXACT
 
@@ -66,6 +70,8 @@ def test_printer_client_sends_prepared_png_unchanged() -> None:
     seen: list[bytes] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/printer/status":
+            return httpx.Response(200, json={"reachable": True, "hardware_status": "ready"})
         assert request.url.path == "/print/prepared-image"
         seen.append(await request.aread())
         return httpx.Response(204)
@@ -98,6 +104,8 @@ def test_invalid_printer_preview_is_translated() -> None:
 
 def test_print_failure_includes_printer_agent_reason() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/printer/status":
+            return httpx.Response(200, json={"reachable": True, "hardware_status": "ready"})
         assert request.url.path == "/print/prepared-image"
         return httpx.Response(
             503,
@@ -120,7 +128,9 @@ def test_print_failure_includes_printer_agent_reason() -> None:
 
 
 def test_rejected_prepared_print_does_not_blame_original_photo() -> None:
-    async def handler(_request: httpx.Request) -> httpx.Response:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/printer/status":
+            return httpx.Response(200, json={"reachable": True, "hardware_status": "ready"})
         return httpx.Response(400, json={"detail": "Prepared image must be a 1-bit PNG"})
 
     client = client_with(httpx.MockTransport(handler))
@@ -137,14 +147,104 @@ def test_rejected_prepared_print_does_not_blame_original_photo() -> None:
         asyncio.run(client.close())
 
 
-@pytest.mark.parametrize("reachable, expected", [(True, True), (False, False)])
-def test_printer_health_uses_hardware_reachability(reachable: bool, expected: bool) -> None:
+@pytest.mark.parametrize(
+    ("raw_status", "expected"),
+    [
+        ("ready", PrinterHardwareStatus.READY),
+        ("paper_out", PrinterHardwareStatus.PAPER_OUT),
+        ("error", PrinterHardwareStatus.ERROR),
+        ("unknown", PrinterHardwareStatus.UNKNOWN),
+        ("future_status", PrinterHardwareStatus.UNKNOWN),
+        (None, None),
+    ],
+)
+def test_printer_status_parses_hardware_status(
+    raw_status: str | None,
+    expected: PrinterHardwareStatus | None,
+) -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/printer/status"
-        return httpx.Response(200, json={"reachable": reachable})
+        return httpx.Response(
+            200,
+            json={"reachable": True, "hardware_status": raw_status},
+        )
 
     client = client_with(httpx.MockTransport(handler))
     try:
-        assert asyncio.run(client.healthy()) is expected
+        status = asyncio.run(client.status())
+        assert status.reachable is True
+        assert status.hardware_status is expected
+    finally:
+        asyncio.run(client.close())
+
+
+def test_printer_status_failure_is_offline() -> None:
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    client = client_with(httpx.MockTransport(handler))
+    try:
+        status = asyncio.run(client.status())
+        assert status.reachable is False
+        assert status.hardware_status is None
+    finally:
+        asyncio.run(client.close())
+
+
+@pytest.mark.parametrize(
+    ("reachable", "hardware_status", "code"),
+    [
+        (False, None, "printer_unavailable"),
+        (True, "paper_out", "printer_paper_out"),
+        (True, "error", "printer_error"),
+        (True, "unknown", "printer_not_ready"),
+        (True, "future_status", "printer_not_ready"),
+    ],
+)
+def test_print_preflight_blocks_printer_that_is_not_ready(
+    reachable: bool,
+    hardware_status: str | None,
+    code: str,
+) -> None:
+    paths: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        return httpx.Response(
+            200,
+            json={"reachable": reachable, "hardware_status": hardware_status},
+        )
+
+    client = client_with(httpx.MockTransport(handler))
+    try:
+        with pytest.raises(PrinterAgentError) as caught:
+            asyncio.run(client.print_prepared(EXACT))
+        assert caught.value.code == code
+        assert caught.value.retryable is True
+        assert caught.value.ambiguous is False
+        assert paths == ["/printer/status"]
+    finally:
+        asyncio.run(client.close())
+
+
+@pytest.mark.parametrize("hardware_status", ["ready", None])
+def test_print_preflight_allows_ready_or_unsupported_status(
+    hardware_status: str | None,
+) -> None:
+    paths: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        if request.url.path == "/printer/status":
+            return httpx.Response(
+                200,
+                json={"reachable": True, "hardware_status": hardware_status},
+            )
+        return httpx.Response(204)
+
+    client = client_with(httpx.MockTransport(handler))
+    try:
+        asyncio.run(client.print_prepared(EXACT))
+        assert paths == ["/printer/status", "/print/prepared-image"]
     finally:
         asyncio.run(client.close())

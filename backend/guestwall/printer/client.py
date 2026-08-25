@@ -1,6 +1,7 @@
 import base64
 import binascii
 from dataclasses import dataclass
+from enum import StrEnum
 
 import httpx
 
@@ -21,6 +22,19 @@ class PrinterAgentError(Exception):
 class PreparedImages:
     exact_print: bytes
     enhanced_preview: bytes
+
+
+class PrinterHardwareStatus(StrEnum):
+    READY = "ready"
+    PAPER_OUT = "paper_out"
+    ERROR = "error"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class PrinterAgentStatus:
+    reachable: bool
+    hardware_status: PrinterHardwareStatus | None
 
 
 class PrinterAgentClient:
@@ -90,6 +104,8 @@ class PrinterAgentClient:
             ) from exc
 
     async def print_prepared(self, image: bytes) -> None:
+        status = await self.status()
+        self._require_ready(status)
         try:
             with PRINTER_REQUEST_DURATION.labels(operation="print").time():
                 response = await self._client.post(
@@ -139,14 +155,56 @@ class PrinterAgentClient:
                 ambiguous=True,
             ) from exc
 
-    async def healthy(self) -> bool:
+    async def status(self) -> PrinterAgentStatus:
         try:
             response = await self._client.get("/printer/status", timeout=3)
             response.raise_for_status()
             payload = response.json()
-            return payload.get("reachable") is True
+            if not isinstance(payload, dict):
+                raise ValueError("expected an object")
+            reachable = payload.get("reachable") is True
+            raw_hardware_status = payload.get("hardware_status")
+            if raw_hardware_status is None:
+                hardware_status = None
+            else:
+                try:
+                    hardware_status = PrinterHardwareStatus(raw_hardware_status)
+                except (TypeError, ValueError):
+                    hardware_status = PrinterHardwareStatus.UNKNOWN
+            return PrinterAgentStatus(
+                reachable=reachable,
+                hardware_status=hardware_status,
+            )
         except (httpx.HTTPError, ValueError, AttributeError):
-            return False
+            return PrinterAgentStatus(reachable=False, hardware_status=None)
+
+    @staticmethod
+    def _require_ready(status: PrinterAgentStatus) -> None:
+        if not status.reachable:
+            raise PrinterAgentError(
+                "The printer is unavailable. Check its power and connection, then try again.",
+                code="printer_unavailable",
+                retryable=True,
+            )
+        if status.hardware_status in {None, PrinterHardwareStatus.READY}:
+            return
+        if status.hardware_status is PrinterHardwareStatus.PAPER_OUT:
+            raise PrinterAgentError(
+                "The printer is out of paper. Add a roll and try again.",
+                code="printer_paper_out",
+                retryable=True,
+            )
+        if status.hardware_status is PrinterHardwareStatus.ERROR:
+            raise PrinterAgentError(
+                "The printer needs attention before printing can continue.",
+                code="printer_error",
+                retryable=True,
+            )
+        raise PrinterAgentError(
+            "The printer is online but not ready. Check it and try again.",
+            code="printer_not_ready",
+            retryable=True,
+        )
 
     @staticmethod
     def _error_detail(response: httpx.Response) -> str | None:
