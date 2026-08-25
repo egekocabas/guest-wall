@@ -20,6 +20,13 @@ export interface Preview {
   expires_at: string;
 }
 
+export type PrinterHardwareStatus = "ready" | "paper_out" | "error" | "unknown";
+
+export interface PrinterStatus {
+  online: boolean;
+  hardware_status: PrinterHardwareStatus | null;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -90,7 +97,8 @@ export const api = {
       headers: { "Idempotency-Key": crypto.randomUUID() },
     });
   },
-  printerStatus(): Promise<{ online: boolean }> {
-    return request("/api/printer/status");
+  async printerStatus(): Promise<PrinterStatus> {
+    const status = await request<PrinterStatus>("/api/printer/status");
+    return { ...status, hardware_status: status.hardware_status ?? null };
   },
 };

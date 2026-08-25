@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ApiError, api, type Preview, type Visibility } from "./api";
+import { ApiError, api, type Preview, type PrinterStatus, type Visibility } from "./api";
 
 interface GuestFlowProps {
   onAdded: () => void;
@@ -25,7 +25,8 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
   const [completion, setCompletion] = useState<Completion>("printed");
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState("");
-  const [printerOnline, setPrinterOnline] = useState<boolean | null>(null);
+  const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
+  const [checkingPrinter, setCheckingPrinter] = useState(false);
   const previewCache = useRef(new Map<string, Preview>());
   const previewRequests = useRef(new Map<string, Promise<Preview>>());
   const mirroredFile = useRef<Promise<File> | null>(null);
@@ -34,11 +35,22 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
   const shownSelection = useRef<PreviewSelection | null>(null);
   const flowGeneration = useRef(0);
 
+  const refreshPrinterStatus = useCallback(async () => {
+    setCheckingPrinter(true);
+    try {
+      setPrinterStatus(await api.printerStatus());
+    } catch {
+      setPrinterStatus({ online: false, hardware_status: null });
+    } finally {
+      setCheckingPrinter(false);
+    }
+  }, []);
+
   useEffect(() => {
     void api
       .printerStatus()
-      .then((status) => setPrinterOnline(status.online))
-      .catch(() => setPrinterOnline(false));
+      .then(setPrinterStatus)
+      .catch(() => setPrinterStatus({ online: false, hardware_status: null }));
   }, []);
 
   useEffect(
@@ -51,6 +63,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
 
   async function choose(file?: File) {
     if (!file) return;
+    void refreshPrinterStatus();
     const generation = flowGeneration.current + 1;
     flowGeneration.current = generation;
     void discardPreviews(previewCache.current);
@@ -163,6 +176,7 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
             : "Your photo could not be added to the wall.",
       );
       setPhase("preview");
+      if (printPhoto) void refreshPrinterStatus();
     }
   }
 
@@ -204,14 +218,11 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
               <br />
               piece of today.
             </h1>
-            {printerOnline === false ? (
-              <p
-                role="status"
-                className="mt-5 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900"
-              >
-                The printer seems offline. You can still enjoy the wall.
-              </p>
-            ) : null}
+            <PrinterNotice
+              status={printerStatus}
+              checking={checkingPrinter}
+              onCheck={() => void refreshPrinterStatus()}
+            />
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
               <label className="primary-button cursor-pointer">
                 <CameraIcon /> Take a photo
@@ -313,9 +324,14 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
                 </span>
               </label>
             </fieldset>
+            <PrinterNotice
+              status={printerStatus}
+              checking={checkingPrinter}
+              onCheck={() => void refreshPrinterStatus()}
+            />
             <button
               className="primary-button mt-5 w-full"
-              disabled={phase !== "preview" || preparing}
+              disabled={phase !== "preview" || preparing || !printerCanPrint(printerStatus)}
               onClick={() => void submit(true)}
             >
               {phase === "printing" ? "Printing…" : "Print & Add to The Wall"}
@@ -372,6 +388,47 @@ export function GuestFlow({ onAdded }: GuestFlowProps) {
         ) : null}
       </div>
     </section>
+  );
+}
+
+function printerCanPrint(status: PrinterStatus | null): boolean {
+  if (!status) return true;
+  return status.online && (status.hardware_status === null || status.hardware_status === "ready");
+}
+
+function PrinterNotice({
+  status,
+  checking,
+  onCheck,
+}: {
+  status: PrinterStatus | null;
+  checking: boolean;
+  onCheck: () => void;
+}) {
+  let message: string | null = null;
+  if (status && !status.online) {
+    message = "The printer seems offline. You can still add your photo to the wall.";
+  } else if (status?.hardware_status === "paper_out") {
+    message = "The printer is out of paper. Add a roll, then check again.";
+  } else if (status?.hardware_status === "error") {
+    message = "The printer needs attention. You can still add your photo to the wall.";
+  } else if (status?.hardware_status === "unknown") {
+    message = "The printer is online but not ready. Check it before printing.";
+  }
+  if (!message) return null;
+
+  return (
+    <div role="status" className="mt-5 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
+      <p>{message}</p>
+      <button
+        type="button"
+        className="mt-2 font-semibold underline underline-offset-2 disabled:opacity-60"
+        disabled={checking}
+        onClick={onCheck}
+      >
+        {checking ? "Checking…" : "Check again"}
+      </button>
+    </div>
   );
 }
 

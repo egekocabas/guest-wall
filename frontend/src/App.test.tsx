@@ -298,6 +298,54 @@ describe("Guestwall", () => {
     );
   });
 
+  it("blocks printing on paper-out and enables it after a successful recheck", async () => {
+    let statusRequests = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/api/printer/status") {
+        statusRequests += 1;
+        return new Response(
+          JSON.stringify({
+            online: true,
+            hardware_status: statusRequests <= 2 ? "paper_out" : "ready",
+          }),
+        );
+      }
+      if (url.startsWith("/api/photos?"))
+        return new Response(JSON.stringify({ items: [], next_offset: null }));
+      if (url === "/api/previews")
+        return new Response(
+          JSON.stringify({
+            preview_id: "paper-out",
+            preview_url: "/preview.png",
+            expires_at: "2026-01-01T00:00:00",
+          }),
+          { status: 201 },
+        );
+      return new Response(null, { status: 204 });
+    });
+
+    const user = userEvent.setup();
+    render(<App modeOverride="lan" />);
+    await user.upload(
+      screen.getByLabelText("Choose from library"),
+      new File(["photo"], "photo.jpg", { type: "image/jpeg" }),
+    );
+
+    const print = await screen.findByRole("button", { name: "Print & Add to The Wall" });
+    expect(
+      await screen.findByText("The printer is out of paper. Add a roll, then check again."),
+    ).toBeInTheDocument();
+    expect(print).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add to Wall Only" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Check again" }));
+    await waitFor(() => expect(print).toBeEnabled());
+    expect(
+      screen.queryByText("The printer is out of paper. Add a roll, then check again."),
+    ).not.toBeInTheDocument();
+  });
+
   it("adds the current date and time to the preview when selected", async () => {
     const previewForms: FormData[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

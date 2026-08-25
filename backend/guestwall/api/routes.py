@@ -175,7 +175,8 @@ def public_photo_image(
 
 @router.get("/api/printer/status", response_model=PrinterStatus)
 async def printer_status(service: GuestwallService = Depends(get_service)) -> PrinterStatus:
-    return PrinterStatus(online=await service.printer.healthy())
+    status = await service.printer.status()
+    return PrinterStatus(online=status.reachable, hardware_status=status.hardware_status)
 
 
 @router.get("/api/admin/photos", response_model=PhotoPage)

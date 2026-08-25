@@ -191,11 +191,15 @@ Back up `guestwall.sqlite3` and `photos/` together. For a simple consistent back
 
 - `/health/live` reports process health and never depends on the printer.
 - `/health/ready` checks SQLite and writable storage, not printer availability.
-- `/api/printer/status` is a low-timeout LAN status check used by the contribution UI.
+- `/api/printer/status` is a low-timeout LAN status check that reports reachability and the
+  printer-agent's generic hardware state (`ready`, `paper_out`, `error`, or `unknown`).
 - `/metrics` exposes Prometheus counters, gauges, and printer request latency without photo-ID labels.
 - Logs are one JSON object per line for collection by Grafana Alloy.
 
-Gallery viewing continues when the printer-agent or printer is offline. No failed print is added to the wall.
+Gallery viewing and wall-only contributions continue when the printer-agent is offline or the
+printer is not ready. Guestwall checks status again immediately before printing, and no definite
+failed print is added to the wall. Printers that do not expose hardware status keep the earlier
+reachability-only behavior.
 
 ## v1 limitations
 

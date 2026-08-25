@@ -10,7 +10,12 @@ os.environ.setdefault("DATA_DIR", tempfile.mkdtemp(prefix="guestwall-import-"))
 
 from guestwall.config import Settings  # noqa: E402
 from guestwall.main import create_app  # noqa: E402
-from guestwall.printer import PreparedImages, PrinterAgentError  # noqa: E402
+from guestwall.printer import (  # noqa: E402
+    PreparedImages,
+    PrinterAgentError,
+    PrinterAgentStatus,
+    PrinterHardwareStatus,
+)
 
 PNG = b"\x89PNG\r\n\x1a\n"
 EXACT = PNG + b"exact-print-raster"
@@ -24,6 +29,10 @@ class MockPrinter:
         self.print_inputs: list[bytes] = []
         self.fail_print = False
         self.ambiguous_print = False
+        self.printer_status = PrinterAgentStatus(
+            reachable=True,
+            hardware_status=PrinterHardwareStatus.READY,
+        )
 
     async def preview(
         self,
@@ -46,8 +55,8 @@ class MockPrinter:
                 ambiguous=self.ambiguous_print,
             )
 
-    async def healthy(self) -> bool:
-        return True
+    async def status(self) -> PrinterAgentStatus:
+        return self.printer_status
 
 
 @pytest.fixture
