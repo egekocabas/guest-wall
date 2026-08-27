@@ -65,7 +65,7 @@ networkPolicy:
     - observability
   printerAgent:
     enabled: false
-    cidr: 192.168.178.100/32
+    cidr: 192.0.2.10/32
     port: 8001
 
 serviceMonitor:
