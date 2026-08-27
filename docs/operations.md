@@ -6,7 +6,7 @@
 /data/guestwall.sqlite3
 /data/photos/<photo-id>/preview.png
 /data/photos/<photo-id>/print.png
-/data/previews/                 # temporary and disposable after expiry
+/data/previews/ # temporary and disposable after expiry
 ```
 
 Back up `guestwall.sqlite3` and `photos/` together. For a simple consistent backup, stop or scale
@@ -37,5 +37,4 @@ status support retain reachability-only behavior.
 
 - One replica and one persistent volume only.
 - No guest accounts, comments, likes, moderation, cloud object storage, or direct printer control.
-- Ambiguous print timeouts require host judgment instead of risking an automatic duplicate.
 - Infrastructure Basic Auth is not present in local development; it is a Traefik concern.

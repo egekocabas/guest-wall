@@ -61,12 +61,3 @@ cd frontend && npm run build
 helm lint chart/guest-wall
 docker build -t guestwall:local .
 ```
-
-Backend integration tests cover preview creation, exact raster handling, original-image disposal,
-visibility boundaries, pagination, print failures and ambiguity, idempotent confirmations and
-reprints, expiry cleanup, admin changes and deletion, and restart persistence. Frontend tests cover
-the public boundary, bounded page navigation, mobile loading, and the main guest flow.
-
-CI runs formatting, linting, strict type checking, tests, the production frontend build, Helm lint
-and rendering, and a multi-platform container build. Main and version tags publish `linux/amd64`
-and `linux/arm64` images to GHCR.
