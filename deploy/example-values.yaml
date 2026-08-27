@@ -1,5 +1,5 @@
-# Reference values following the pi16 GitOps conventions. The homelab-infra
-# repository owns the actual desired state, secret, and immutable image digest.
+# Example values for a single-node K3s deployment. Replace all documentation
+# hostnames, addresses, credentials, and image pins before using this file.
 replicaCount: 1
 fullnameOverride: guest-wall
 
@@ -9,23 +9,20 @@ image:
   digest: ""
   pullPolicy: IfNotPresent
 
-imagePullSecrets:
-  - name: ghcr-guest-wall
-
 printerAgent:
-  url: http://192.168.178.100:8000
+  url: http://192.0.2.10:8000
   timeoutSeconds: 30
 
 app:
-  publicHost: guest-wall.egekocabas.com
+  publicHost: guest-wall.example.com
 
 ingress:
   lan:
     enabled: true
-    host: guest-wall.home.egekocabas.com
+    host: guest-wall.home.example.com
   public:
     enabled: true
-    host: guest-wall.egekocabas.com
+    host: guest-wall.example.com
 
 admin:
   basicAuthSecret: guest-wall-admin-basic-auth
@@ -39,7 +36,7 @@ networkPolicy:
   enabled: true
   printerAgent:
     enabled: true
-    cidr: 192.168.178.100/32
+    cidr: 192.0.2.10/32
     port: 8000
 
 serviceMonitor:
