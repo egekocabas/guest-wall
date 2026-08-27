@@ -2,15 +2,16 @@
 
 ## Docker Compose
 
-The production-shaped local stack includes Guestwall and a mock printer agent:
+The Compose stack includes Guestwall and a mock printer agent:
 
 ```bash
 docker compose up --build
 ```
 
-Open `http://localhost:8000`. The `guestwall-data` Docker volume persists the database and images.
+Guestwall is served at `http://localhost:8000`. The `guestwall-data` volume persists the database
+and images.
 
-## Helm and K3s
+## Helm and Kubernetes
 
 The chart uses `networking.k8s.io/v1` Ingress resources. It can create a same-namespace Traefik
 Basic Auth `Middleware` backed by an existing Kubernetes Secret or reference an existing middleware.
@@ -26,19 +27,18 @@ helm upgrade --install guest-wall chart/guest-wall \
   --values deploy/example-values.yaml
 ```
 
-Operator configuration still required:
+The example values contain placeholders for:
 
-1. Publish or select an ARM64-capable image and pin its repository and digest.
-2. Set a printer-agent URL reachable from the pod. The browser never receives this URL.
-3. Configure LAN DNS and the public hostname.
-4. Provide either `admin.basicAuthSecret` or `admin.basicAuthMiddleware` for the LAN Ingress.
-5. Keep one replica and choose the appropriate persistent volume size and storage class.
-6. Restrict the printer agent to trusted callers at the network or host firewall layer.
+- The image repository and immutable digest.
+- A printer-agent URL reachable from the pod.
+- LAN and public hostnames.
+- Either `admin.basicAuthSecret` or `admin.basicAuthMiddleware` for the LAN Ingress.
+- Persistent volume size and storage class.
+- The printer-agent CIDR and port used by NetworkPolicy.
 
-The default chart ingresses are disabled so example hostnames cannot be deployed accidentally.
-Enabling LAN ingress without exactly one Basic Auth secret or middleware reference fails template
-rendering. NetworkPolicy is opt-in because its printer-agent address and port must match the target
-environment.
+Ingress and NetworkPolicy are disabled in the chart defaults. Enabling LAN ingress without exactly
+one Basic Auth secret or middleware reference fails template rendering. The example values enable
+both ingress and NetworkPolicy with documentation-only hosts and addresses.
 
 ## Ingress model
 
@@ -46,9 +46,8 @@ The LAN Ingress provides the guest application and gallery. Admin paths receive 
 higher-priority Basic Auth middleware. The public Ingress exposes only the public page, static
 assets, health endpoints, and `/api/public/*`.
 
-The backend repeats this boundary using `PUBLIC_HOST`, so an ingress routing mistake does not make
-LAN or admin APIs available through the public hostname. See
-[Architecture](architecture.md#access-boundaries) for the complete model.
+The backend repeats this boundary using `PUBLIC_HOST`. See
+[Architecture](architecture.md#access-boundaries) for the route checks.
 
 ## Network policy
 

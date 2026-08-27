@@ -6,29 +6,29 @@
 - Node.js 24.
 - npm.
 
-Install both application stacks:
+Install dependencies:
 
 ```bash
 make install
 ```
 
-Run the development-only printer stand-in:
+Run the mock printer:
 
 ```bash
 cd backend
 ../.venv/bin/uvicorn tools.mock_printer:app --port 8001
 ```
 
-In two more terminals, run the backend and frontend:
+Run the backend and frontend as separate processes:
 
 ```bash
 make dev-backend
 make dev-frontend
 ```
 
-Open `http://localhost:5173`. Vite proxies `/api` to FastAPI. Set `PRINTER_AGENT_URL` to a real or
-mock printer agent as needed. The included mock returns a placeholder PNG and acknowledges prints;
-it does not emulate thermal processing.
+The Vite server at `http://localhost:5173` proxies `/api` to FastAPI. `PRINTER_AGENT_URL` selects
+the real or mock printer agent. The mock returns a placeholder PNG and acknowledges print requests;
+it does not run the thermal image pipeline.
 
 ## Configuration
 
@@ -44,8 +44,7 @@ it does not emulate thermal processing.
 | `PUBLIC_HOST`                      | deployment-specific     | Host receiving defense-in-depth public restrictions |
 | `LOG_LEVEL`                        | `INFO`                  | Structured JSON application log level               |
 
-The backend must be migrated before startup. The container entrypoint does this automatically. For
-a direct local run:
+The container entrypoint runs database migrations. For a direct local run:
 
 ```bash
 cd backend

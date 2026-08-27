@@ -1,19 +1,25 @@
 # Guestwall
 
-Guestwall is a small, self-hosted photo wall for a home. Guests can choose a photo,
-approve a thermal-paper preview, decide whether it is public or home-only, and print it.
+Guestwall is a self-hosted photo wall designed to work with a thermal printer. A guest chooses a
+photo, reviews the prepared thermal preview, selects public or home-only visibility, and can print
+the approved image.
 
-The original phone photo is never stored. Guestwall sends it to a separate printer agent
-and keeps only the prepared preview and print PNGs returned by that service.
+The printer interface is [printer-agent](https://github.com/egekocabas/printer-agent), an HTTP
+service for ESC/POS thermal printers. Guestwall calls its preview, prepared-image print, and printer
+status endpoints and depends on their documented response formats. It is not a generic printer
+integration.
 
-## Highlights
+The original upload is transient. Guestwall stores only the preview and print PNGs returned by
+`printer-agent`.
 
-- Mobile-first guest flow with a preview that matches the printed raster.
-- Separate LAN, public, and infrastructure-protected admin surfaces.
-- Public/private visibility controls enforced by both routing and database queries.
-- SQLite and filesystem storage designed for a single self-hosted instance.
-- Docker Compose for local use and a Helm chart for Kubernetes deployments.
-- Health checks, Prometheus metrics, structured logs, and conservative print retries.
+## Behavior
+
+- The approved raster is sent back to `printer-agent` without another image-processing pass.
+- LAN, public, and admin routes expose different application and API surfaces.
+- Visibility is checked in database queries and again when images are served.
+- SQLite and generated PNG files share one persistent volume; the application runs as one replica.
+- The repository includes Docker Compose configuration and a Helm chart for Kubernetes.
+- The backend exposes health endpoints, Prometheus metrics, and structured JSON logs.
 
 ## Architecture
 
@@ -25,27 +31,25 @@ LAN phone --> Guestwall (React + FastAPI) --> SQLite + PNG files
 Internet --> restricted public route --> public photos only
 ```
 
-Guestwall deliberately delegates USB access, image preparation, dithering, and printer-specific
-behavior to the independently operated `printer-agent`. See
-[Architecture](docs/architecture.md) for the image lifecycle and trust boundaries.
+`printer-agent` handles USB access, input conversion, resizing, dithering, and printer status.
+Guestwall handles the guest flow, visibility, persistence, and the public and admin boundaries. See
+[Architecture](docs/architecture.md) for the component contract and image lifecycle.
 
 ## Quick start
-
-Requirements: Docker with the Compose plugin.
 
 ```bash
 docker compose up --build
 ```
 
-Open `http://localhost:8000`. The included mock printer returns a placeholder preview and
-acknowledges print requests; it does not emulate thermal processing. Data is stored in the
-`guestwall-data` Docker volume.
+The application is served at `http://localhost:8000`. The Compose stack uses the included mock
+printer, which returns a placeholder preview and acknowledges print requests. Data is stored in the
+`guestwall-data` volume.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md) — components, privacy boundaries, and print lifecycle.
 - [Development](docs/development.md) — local setup, configuration, tests, and checks.
-- [Deployment](docs/deployment.md) — container, Helm, K3s, ingress, and network policy setup.
+- [Deployment](docs/deployment.md) — container, Helm, Kubernetes, ingress, and network policy.
 - [Operations](docs/operations.md) — persistence, backup, deletion, observability, and limitations.
 
 ## Project status

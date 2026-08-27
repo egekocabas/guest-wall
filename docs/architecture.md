@@ -17,6 +17,23 @@ SQLite runs in WAL mode with a busy timeout. The Kubernetes deployment uses the 
 strategy and exactly one replica because the database and filesystem are intentionally local.
 Guestwall is not horizontally scalable.
 
+## Printer-agent contract
+
+Guestwall integrates specifically with
+[`printer-agent`](https://github.com/egekocabas/printer-agent). A replacement service would need to
+implement the same HTTP contract:
+
+- `POST /preview/image?response=json` accepts a multipart `image` plus optional `date` and `time`
+  fields. Guestwall expects Base64-encoded PNG values named `exact_print_image` and
+  `enhanced_preview_image`.
+- `POST /print/prepared-image` accepts the approved 1-bit PNG as multipart `image`. Guestwall treats
+  a successful HTTP response as confirmation that the request completed.
+- `GET /printer/status` returns an object with `reachable` and optional `hardware_status` fields.
+  Recognized hardware states are `ready`, `paper_out`, `error`, and `unknown`.
+
+The upstream endpoint definitions and validation rules are documented in the
+[`printer-agent` HTTP API](https://github.com/egekocabas/printer-agent/blob/main/docs/api.md).
+
 ## Image lifecycle
 
 After a guest chooses a photo, the browser sends it to `POST /api/previews` without a caption and
@@ -26,8 +43,8 @@ variants are cached in the tab, and mirroring happens before thermal preparation
 readable.
 
 Each preview request keeps the bounded upload in request-scoped multipart storage. Larger uploads
-may spool only to the pod's ephemeral `/tmp`. Guestwall sends the image to `printer-agent` and
-writes only the returned files under `/data/previews/<uuid>/`:
+may spool to the pod's ephemeral `/tmp`. Guestwall sends the image to `printer-agent` and writes
+the returned files under `/data/previews/<uuid>/`:
 
 - `preview.png` is the screen-friendly thermal representation shown on the wall.
 - `print.png` is the exact prepared raster approved in the preview and sent to the printer.
