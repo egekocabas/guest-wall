@@ -16,6 +16,9 @@ printerAgent:
 
 app:
   publicHost: guest-wall.example.com
+  # Absolute destinations printed by admin QR actions. Empty disables the action.
+  publicUrl: ""
+  homeUrl: ""
   maxUploadBytes: 20971520
   previewTtlSeconds: 3600
   cleanupIntervalSeconds: 900

@@ -29,3 +29,14 @@ async def preview(image: UploadFile = File(...), response: str = "json") -> dict
 async def print_prepared(image: UploadFile = File(...)) -> Response:
     await image.read()
     return Response(status_code=204)
+
+
+@app.get("/printer/status")
+def printer_status() -> dict[str, object]:
+    return {"reachable": True, "hardware_status": "ready"}
+
+
+@app.post("/print/feed")
+@app.post("/print/qr")
+def print_tool() -> dict[str, str]:
+    return {"status": "printed"}

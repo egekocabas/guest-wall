@@ -155,6 +155,48 @@ class PrinterAgentClient:
                 ambiguous=True,
             ) from exc
 
+    async def feed(self, lines: int) -> None:
+        await self._print_tool("/print/feed", {"lines": lines})
+
+    async def print_qr(self, url: str, label: str) -> None:
+        await self._print_tool(
+            "/print/qr", {"data": url, "label": label, "align": "center", "size": 6}
+        )
+
+    async def _print_tool(self, path: str, payload: dict[str, object]) -> None:
+        self._require_ready(await self.status())
+        try:
+            with PRINTER_REQUEST_DURATION.labels(operation="print").time():
+                response = await self._client.post(path, json=payload)
+            response.raise_for_status()
+        except httpx.ConnectError as exc:
+            raise PrinterAgentError(
+                "The printer service is unavailable.", code="printer_unavailable", retryable=True
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            rejected = exc.response.status_code in {400, 413, 415, 422}
+            detail = self._error_detail(exc.response)
+            message = (
+                "The printer rejected this request" if rejected else "The print outcome is unknown"
+            )
+            if detail:
+                message += f": {detail}"
+            if not rejected:
+                message += ". Check the paper before sending another job"
+            raise PrinterAgentError(
+                message + ".",
+                code="print_request_rejected" if rejected else "print_outcome_unknown",
+                retryable=False,
+                ambiguous=not rejected,
+            ) from exc
+        except httpx.RequestError as exc:
+            raise PrinterAgentError(
+                "The print outcome is unknown. Check the paper before sending another job.",
+                code="print_outcome_unknown",
+                retryable=False,
+                ambiguous=True,
+            ) from exc
+
     async def status(self) -> PrinterAgentStatus:
         try:
             response = await self._client.get("/printer/status", timeout=3)

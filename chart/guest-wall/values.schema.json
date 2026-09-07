@@ -21,6 +21,13 @@
         "timeoutSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 120 }
       }
     },
+    "app": {
+      "type": "object",
+      "properties": {
+        "publicUrl": { "type": "string", "pattern": "^$|^https?://" },
+        "homeUrl": { "type": "string", "pattern": "^$|^https?://" }
+      }
+    },
     "persistence": {
       "type": "object",
       "required": ["enabled", "size"],

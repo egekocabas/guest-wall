@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, api, type Photo } from "./api";
 
+import { PrinterTools } from "./PrinterTools";
+
 const ADMIN_PAGE_SIZE = 12;
 
 export function Admin() {
@@ -70,6 +72,7 @@ export function Admin() {
           Back to wall
         </a>
       </header>
+      <PrinterTools />
       {message ? (
         <p role="status" className="mb-5 rounded-lg bg-white p-3 text-sm shadow-sm">
           {message}
