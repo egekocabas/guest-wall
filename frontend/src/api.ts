@@ -56,7 +56,32 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export interface PrinterLinks {
+  home_url: string | null;
+  public_url: string | null;
+}
+
 export const api = {
+  adminPrinterStatus(): Promise<PrinterStatus> {
+    return request("/api/admin/printer/status");
+  },
+  printerLinks(): Promise<PrinterLinks> {
+    return request("/api/admin/printer/links");
+  },
+  feedPaper(lines: number): Promise<void> {
+    return request("/api/admin/printer/feed", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lines }),
+    });
+  },
+  printWallQr(destination: "home" | "public", label: string): Promise<void> {
+    return request("/api/admin/printer/qr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ destination, label }),
+    });
+  },
   listPhotos(publicOnly: boolean, offset = 0, limit = 12): Promise<PhotoPage> {
     const base = publicOnly ? "/api/public/photos" : "/api/photos";
     return request(`${base}?offset=${offset}&limit=${limit}`);

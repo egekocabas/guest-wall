@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from guestwall.models import Visibility
 from guestwall.printer import PrinterHardwareStatus
@@ -46,3 +47,19 @@ class ErrorDetail(BaseModel):
     message: str
     code: str
     retryable: bool = False
+
+
+class PaperFeed(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    lines: int = Field(ge=1, le=255, strict=True)
+
+
+class WallQr(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    destination: Literal["home", "public"]
+    label: str = Field(default="", max_length=200)
+
+
+class PrinterLinks(BaseModel):
+    home_url: str | None
+    public_url: str | None

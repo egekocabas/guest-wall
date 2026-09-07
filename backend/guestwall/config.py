@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     preview_ttl_seconds: int = Field(default=60 * 60, ge=60)
     preview_cleanup_interval_seconds: int = Field(default=15 * 60, ge=10)
     public_host: str = "guest-wall.egekocabas.com"
+    public_url: HttpUrl | None = None
+    home_url: HttpUrl | None = None
     log_level: str = "INFO"
 
     @property

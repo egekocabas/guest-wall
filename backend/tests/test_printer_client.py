@@ -248,3 +248,77 @@ def test_print_preflight_allows_ready_or_unsupported_status(
         assert paths == ["/printer/status", "/print/prepared-image"]
     finally:
         asyncio.run(client.close())
+
+
+@pytest.mark.parametrize(
+    "operation,payload",
+    [
+        ("feed", {"lines": 5}),
+        ("qr", {"data": "https://home.test/", "label": "Welcome", "align": "center", "size": 6}),
+    ],
+)
+def test_admin_tools_send_json_after_preflight(operation, payload):
+    import json
+
+    paths = []
+
+    def handle(request):
+        paths.append(request.url.path)
+        if request.url.path == "/printer/status":
+            return httpx.Response(200, json={"reachable": True, "hardware_status": "ready"})
+        assert json.loads(request.content) == payload
+        return httpx.Response(200, json={"status": "printed"})
+
+    client = client_with(httpx.MockTransport(handle))
+
+    async def run():
+        try:
+            if operation == "feed":
+                await client.feed(5)
+            else:
+                await client.print_qr("https://home.test/", "Welcome")
+        finally:
+            await client.close()
+
+    asyncio.run(run())
+    assert paths == ["/printer/status", f"/print/{operation}"]
+
+
+@pytest.mark.parametrize("failure", ["timeout", "disconnect", "connect", "rejected", "server"])
+def test_tool_failures_are_not_retried(failure):
+    paths = []
+
+    def handle(request):
+        paths.append(request.url.path)
+        if request.url.path == "/printer/status":
+            return httpx.Response(200, json={"reachable": True, "hardware_status": "ready"})
+        if failure == "timeout":
+            raise httpx.ReadTimeout("timeout", request=request)
+        if failure == "disconnect":
+            raise httpx.ReadError("disconnect", request=request)
+        if failure == "connect":
+            raise httpx.ConnectError("offline", request=request)
+        return httpx.Response(422 if failure == "rejected" else 500, json={"detail": "Failed"})
+
+    client = client_with(httpx.MockTransport(handle))
+    with pytest.raises(PrinterAgentError) as caught:
+        asyncio.run(client.feed(3))
+    assert caught.value.ambiguous == (failure in {"timeout", "disconnect", "server"})
+    assert caught.value.retryable == (failure == "connect")
+    assert paths == ["/printer/status", "/print/feed"]
+    asyncio.run(client.close())
+
+
+def test_tool_blocks_paper_out_before_printing():
+    paths = []
+
+    def handle(request):
+        paths.append(request.url.path)
+        return httpx.Response(200, json={"reachable": True, "hardware_status": "paper_out"})
+
+    client = client_with(httpx.MockTransport(handle))
+    with pytest.raises(PrinterAgentError) as caught:
+        asyncio.run(client.feed(3))
+    assert caught.value.code == "printer_paper_out"
+    assert paths == ["/printer/status"]
+    asyncio.run(client.close())

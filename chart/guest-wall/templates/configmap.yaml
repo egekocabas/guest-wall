@@ -8,6 +8,12 @@ data:
   DATA_DIR: /data
   PRINTER_AGENT_URL: {{ required "printerAgent.url is required" .Values.printerAgent.url | quote }}
   PRINTER_TIMEOUT_SECONDS: {{ .Values.printerAgent.timeoutSeconds | quote }}
+  {{- if .Values.app.publicUrl }}
+  PUBLIC_URL: {{ .Values.app.publicUrl | quote }}
+  {{- end }}
+  {{- if .Values.app.homeUrl }}
+  HOME_URL: {{ .Values.app.homeUrl | quote }}
+  {{- end }}
   PUBLIC_HOST: {{ .Values.app.publicHost | quote }}
   MAX_UPLOAD_BYTES: {{ .Values.app.maxUploadBytes | int64 | quote }}
   PREVIEW_TTL_SECONDS: {{ .Values.app.previewTtlSeconds | int64 | quote }}

@@ -17,15 +17,19 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from guestwall.models import Photo, Visibility
+from guestwall.printer import PrinterAgentError
 from guestwall.schemas import (
     ConfirmPreview,
+    PaperFeed,
     PhotoPage,
     PhotoView,
     PreviewCreated,
+    PrinterLinks,
     PrinterStatus,
     VisibilityUpdate,
+    WallQr,
 )
-from guestwall.services import GuestwallService
+from guestwall.services import GuestwallService, ServiceError
 
 router = APIRouter()
 
@@ -228,3 +232,37 @@ async def admin_reprint_photo(
         status_code=status.HTTP_204_NO_CONTENT,
         headers={"Idempotency-Replayed": "true" if replayed else "false"},
     )
+
+
+@router.get("/api/admin/printer/status", response_model=PrinterStatus)
+async def admin_printer_status(service: GuestwallService = Depends(get_service)) -> PrinterStatus:
+    return await printer_status(service)
+
+
+@router.get("/api/admin/printer/links", response_model=PrinterLinks)
+def printer_links(service: GuestwallService = Depends(get_service)) -> PrinterLinks:
+    return PrinterLinks(
+        home_url=str(service.settings.home_url) if service.settings.home_url else None,
+        public_url=str(service.settings.public_url) if service.settings.public_url else None,
+    )
+
+
+@router.post("/api/admin/printer/feed", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_feed(body: PaperFeed, service: GuestwallService = Depends(get_service)) -> Response:
+    try:
+        await service.printer.feed(body.lines)
+    except PrinterAgentError as exc:
+        raise ServiceError(503, str(exc), exc.code, retryable=exc.retryable) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/api/admin/printer/qr", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_qr(body: WallQr, service: GuestwallService = Depends(get_service)) -> Response:
+    url = service.settings.home_url if body.destination == "home" else service.settings.public_url
+    if url is None:
+        raise ServiceError(409, "This wall URL has not been configured.", "wall_url_missing")
+    try:
+        await service.printer.print_qr(str(url), body.label)
+    except PrinterAgentError as exc:
+        raise ServiceError(503, str(exc), exc.code, retryable=exc.retryable) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

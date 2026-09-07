@@ -15,6 +15,8 @@ printerAgent:
 
 app:
   publicHost: guest-wall.example.com
+  publicUrl: https://guest-wall.example.com/
+  homeUrl: https://guest-wall.home.example.com/
 
 ingress:
   lan:
