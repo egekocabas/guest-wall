@@ -61,3 +61,9 @@ the application Service or printer-agent directly through a public tunnel.
 Print controls are disabled while a job is pending or the printer reports a problem. Every job
 checks printer readiness on the backend. Requests are never automatically retried: after an
 uncertain result, check the physical paper before explicitly sending another job.
+
+Admin also polls printer status every 15 seconds while the tab is visible and refreshes when the
+tab becomes visible again. Polling pauses during printer actions, skips overlapping status requests,
+and stops when Admin unmounts. Background polls only fetch status, not QR configuration. This uses
+printer-agent's existing status endpoint unchanged; cached USB connections may still report stale
+reachability after a power change, and hardware/paper status depends on what the agent reports.

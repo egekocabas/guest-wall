@@ -8,31 +8,44 @@ export function PrinterTools() {
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
+  const statusInFlight = useRef(false);
   const [message, setMessage] = useState("");
   const [lines, setLines] = useState("3");
   const [homeLabel, setHomeLabel] = useState("Add your photo to Guestwall - connect to home Wi-Fi");
   const [publicLabel, setPublicLabel] = useState("View our Guestwall");
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (statusOnly = false) => {
+    if (statusInFlight.current) return;
+    statusInFlight.current = true;
     setRefreshing(true);
     try {
       const [nextStatus, nextLinks] = await Promise.all([
         api.adminPrinterStatus(),
-        api.printerLinks(),
+        statusOnly ? Promise.resolve(undefined) : api.printerLinks(),
       ]);
       setStatus(nextStatus);
-      setLinks(nextLinks);
+      if (nextLinks) setLinks(nextLinks);
     } catch {
       setStatus(null);
       setMessage((current) => current || "Could not check the printer. Refresh to try again.");
     } finally {
+      statusInFlight.current = false;
       setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void refresh(), 0);
-    return () => window.clearTimeout(timer);
+    const poll = () => {
+      if (document.visibilityState !== "hidden" && !inFlight.current) void refresh(true);
+    };
+    const interval = window.setInterval(poll, 15_000);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", poll);
+    };
   }, [refresh]);
 
   const ready = status?.online && (!status.hardware_status || status.hardware_status === "ready");
@@ -52,7 +65,7 @@ export function PrinterTools() {
             : "Ready";
 
   async function run(action: () => Promise<void>, success: string) {
-    if (inFlight.current || disabled) return;
+    if (inFlight.current || statusInFlight.current || disabled) return;
     inFlight.current = true;
     setBusy(true);
     setMessage("");
