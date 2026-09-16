@@ -150,6 +150,15 @@ def create_app(
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=assets), name="assets")
 
+    @app.api_route("/robots.txt", methods=["GET", "HEAD"], include_in_schema=False)
+    def robots() -> Response:
+        robots_file = static_root / "robots.txt"
+        if not robots_file.is_file():
+            return Response(status_code=404)
+        return FileResponse(
+            robots_file, media_type="text/plain", headers={"Cache-Control": "no-cache"}
+        )
+
     @app.get("/", include_in_schema=False)
     @app.get("/admin", include_in_schema=False)
     @app.get("/admin/{rest:path}", include_in_schema=False)
