@@ -42,16 +42,13 @@ export function App({ modeOverride }: { modeOverride?: AppMode }) {
         <GuestFlow onAdded={() => setRefreshToken((value) => value + 1)} />
       ) : (
         <section className="mx-auto max-w-3xl px-4 py-8 text-center sm:px-6 sm:py-16">
-          <p className="font-mono text-[0.65rem] uppercase tracking-[0.28em] text-ink/50">
-            A living collection
-          </p>
-          <h1 className="mt-3 font-display text-[2.75rem] font-black leading-[0.95] tracking-tight min-[380px]:text-5xl sm:text-7xl">
+          <h1 className="font-display text-[2.75rem] font-black leading-[0.95] tracking-tight min-[380px]:text-5xl sm:text-7xl">
             Moments made
             <br />
             to fade slowly.
           </h1>
           <p className="mx-auto mt-5 max-w-md text-sm leading-6 text-ink/60">
-            Small monochrome memories, printed at home and shared here with permission.
+            Small monochrome memories, printed at home.
           </p>
         </section>
       )}
