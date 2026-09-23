@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Admin } from "./Admin";
 import { Gallery } from "./Gallery";
 import { GuestFlow } from "./GuestFlow";
+import { usePhotoTitle } from "./usePhotoTitle";
 
 export type AppMode = "lan" | "public" | "admin";
 
@@ -18,6 +19,7 @@ function detectMode(): AppMode {
 export function App({ modeOverride }: { modeOverride?: AppMode }) {
   const mode = modeOverride || detectMode();
   const [refreshToken, setRefreshToken] = useState(0);
+  usePhotoTitle(mode === "public");
   if (mode === "admin") return <Admin />;
 
   return (
