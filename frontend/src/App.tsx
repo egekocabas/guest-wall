@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Admin } from "./Admin";
 import { Gallery } from "./Gallery";
 import { GuestFlow } from "./GuestFlow";
+import { usePhotoTitle } from "./usePhotoTitle";
 
 export type AppMode = "lan" | "public" | "admin";
 
@@ -18,13 +19,24 @@ function detectMode(): AppMode {
 export function App({ modeOverride }: { modeOverride?: AppMode }) {
   const mode = modeOverride || detectMode();
   const [refreshToken, setRefreshToken] = useState(0);
+  usePhotoTitle(mode === "public");
   if (mode === "admin") return <Admin />;
 
   return (
     <main className="min-h-screen">
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-1 py-3 sm:px-3 sm:py-4">
-        <a href="/" className="tap-link font-display text-2xl font-black tracking-tight">
-          Guestwall<span className="text-rust">.</span>
+        <a
+          href="/"
+          className="tap-link inline-flex items-center gap-2 font-display text-2xl font-black tracking-tight"
+        >
+          <img
+            src="/favicon.svg"
+            alt=""
+            width="48"
+            height="48"
+            className="size-10 shrink-0 sm:size-12"
+          />
+          <span>Guestwall</span>
         </a>
         <a
           href="https://github.com/egekocabas/guest-wall"
@@ -42,16 +54,13 @@ export function App({ modeOverride }: { modeOverride?: AppMode }) {
         <GuestFlow onAdded={() => setRefreshToken((value) => value + 1)} />
       ) : (
         <section className="mx-auto max-w-3xl px-4 py-8 text-center sm:px-6 sm:py-16">
-          <p className="font-mono text-[0.65rem] uppercase tracking-[0.28em] text-ink/50">
-            A living collection
-          </p>
-          <h1 className="mt-3 font-display text-[2.75rem] font-black leading-[0.95] tracking-tight min-[380px]:text-5xl sm:text-7xl">
+          <h1 className="font-display text-[2.75rem] font-black leading-[0.95] tracking-tight min-[380px]:text-5xl sm:text-7xl">
             Moments made
             <br />
             to fade slowly.
           </h1>
           <p className="mx-auto mt-5 max-w-md text-sm leading-6 text-ink/60">
-            Small monochrome memories, printed at home and shared here with permission.
+            Small monochrome memories, printed at home.
           </p>
         </section>
       )}

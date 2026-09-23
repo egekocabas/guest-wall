@@ -2,6 +2,21 @@
   "name": "guestwall-frontend",
   "private": true,
   "version": "0.1.0",
+  "description": "Frontend for the self-hosted Guestwall thermal photo wall",
+  "license": "MIT",
+  "author": {
+    "name": "Ege Kocabas",
+    "url": "https://github.com/egekocabas"
+  },
+  "homepage": "https://github.com/egekocabas/guest-wall#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egekocabas/guest-wall.git",
+    "directory": "frontend"
+  },
+  "bugs": {
+    "url": "https://github.com/egekocabas/guest-wall/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,28 +29,28 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "4.3.3",
-    "@vitejs/plugin-react": "6.1.0",
+    "@vitejs/plugin-react": "6.1.1",
     "tailwindcss": "4.3.3",
-    "vite": "8.2.2",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "vite": "8.3.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@testing-library/jest-dom": "7.0.1",
-    "@testing-library/react": "16.3.2",
-    "@testing-library/user-event": "14.6.6",
-    "@types/node": "26.2.0",
-    "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.5",
-    "eslint": "10.9.0",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/node": "26.6.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "10.11.0",
     "eslint-plugin-react-hooks": "7.1.1",
-    "eslint-plugin-react-refresh": "0.5.4",
-    "globals": "17.11.0",
-    "jsdom": "30.0.1",
-    "prettier": "3.9.6",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "globals": "17.12.0",
+    "jsdom": "30.1.1",
+    "prettier": "3.9.8",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.67.0",
-    "vitest": "4.1.11"
+    "typescript-eslint": "8.70.1",
+    "vitest": "5.0.1"
   }
 }

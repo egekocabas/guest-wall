@@ -1,29 +1,36 @@
 [build-system]
-requires = ["hatchling==1.27.0"]
+requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
 
 [project]
 name = "guestwall"
 version = "0.1.0"
 description = "Self-hosted thermal photo guest wall"
+license = "MIT"
+authors = [{ name = "Ege Kocabas" }]
 requires-python = ">=3.12"
 dependencies = [
-  "alembic==1.19.1",
+  "alembic==1.20.0",
   "fastapi==0.141.1",
   "httpx==0.28.1",
   "prometheus-client==0.26.0",
   "pydantic-settings==2.15.0",
   "python-multipart==0.0.32",
-  "sqlalchemy==2.0.52",
-  "uvicorn[standard]==0.52.4",
+  "sqlalchemy==2.0.54",
+  "uvicorn[standard]==0.53.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/egekocabas/guest-wall"
+Repository = "https://github.com/egekocabas/guest-wall"
+Issues = "https://github.com/egekocabas/guest-wall/issues"
 
 [project.optional-dependencies]
 dev = [
-  "mypy==1.20.2",
-  "pytest==9.0.3",
-  "pytest-cov==6.3.0",
-  "ruff==0.16.4",
+  "mypy==2.3.1",
+  "pytest==9.1.1",
+  "pytest-cov==7.1.0",
+  "ruff==0.16.8",
 ]
 
 [tool.hatch.build.targets.wheel]

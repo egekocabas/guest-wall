@@ -1,10 +1,25 @@
 from pathlib import Path
+from urllib.robotparser import RobotFileParser
 
 import pytest
 from fastapi.testclient import TestClient
 
 from guestwall.config import Settings
 from guestwall.main import create_app
+
+
+@pytest.mark.parametrize("agent", ["Googlebot", "bingbot", "GPTBot", "ClaudeBot", "ExampleBot"])
+def test_robots_disallows_crawling_the_entire_site(settings: Settings, agent: str) -> None:
+    public_dir = Path(__file__).resolve().parents[2] / "frontend" / "public"
+    app = create_app(settings, auto_create_schema=True, frontend_dir=public_dir)
+
+    with TestClient(app) as client:
+        response = client.get("/robots.txt", headers={"Host": settings.public_host})
+
+    policy = RobotFileParser()
+    policy.parse(response.text.splitlines())
+    for path in ("/", "/?page=2", "/admin", "/api/public/photos", "/assets/app.js", "/favicon.svg"):
+        assert not policy.can_fetch(agent, f"https://{settings.public_host}{path}")
 
 
 @pytest.mark.parametrize("method", ["GET", "HEAD"])
