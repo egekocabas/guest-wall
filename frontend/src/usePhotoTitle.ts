@@ -44,6 +44,8 @@ export function usePhotoTitle(enabled: boolean) {
 
     function onVisibilityChange() {
       pause();
+      if (frameIndex >= frames.length) return;
+      frameIndex = 0;
       if (!document.hidden) playFrame();
     }
 

@@ -43,16 +43,22 @@ describe("photo title", () => {
     expect(vi.getTimerCount()).toBe(1);
   });
 
-  it("pauses while hidden and restores the title and timers on unmount", () => {
+  it("restarts from the beginning after switching tabs and clears timers on unmount", () => {
     const { unmount } = renderHook(() => usePhotoTitle(true));
-    act(() => vi.advanceTimersByTime(1800));
+    act(() => vi.advanceTimersByTime(5100));
+    expect(document.title).toBe("___(^_^)[*](^_^)___");
     vi.spyOn(document, "hidden", "get").mockReturnValue(true);
     document.dispatchEvent(new Event("visibilitychange"));
     expect(document.title).toBe("Guestwall");
     expect(vi.getTimerCount()).toBe(0);
     vi.spyOn(document, "hidden", "get").mockReturnValue(false);
     document.dispatchEvent(new Event("visibilitychange"));
+    expect(document.title).toBe("Guestwall");
+    act(() => vi.advanceTimersByTime(1799));
+    expect(document.title).toBe("Guestwall");
+    act(() => vi.advanceTimersByTime(1));
     expect(document.title).toBe("(o_o)___[o]___(o_o)");
+    expect(vi.getTimerCount()).toBe(1);
     unmount();
     expect(document.title).toBe("Guestwall");
     document.dispatchEvent(new Event("visibilitychange"));
@@ -82,6 +88,8 @@ describe("photo title", () => {
     document.dispatchEvent(new Event("visibilitychange"));
     expect(document.title).toBe("Guestwall");
     expect(vi.getTimerCount()).toBe(1);
+    act(() => vi.advanceTimersByTime(1800));
+    expect(document.title).toBe("(o_o)___[o]___(o_o)");
     unmount();
     act(() => vi.advanceTimersByTime(5_000));
     expect(document.title).toBe("Guestwall");
