@@ -25,8 +25,20 @@ export function App({ modeOverride }: { modeOverride?: AppMode }) {
   return (
     <main className="min-h-screen">
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-1 py-3 sm:px-3 sm:py-4">
-        <a href="/" className="tap-link font-display text-2xl font-black tracking-tight">
-          Guestwall<span className="text-rust">.</span>
+        <a
+          href="/"
+          className="tap-link inline-flex items-center gap-2 font-display text-2xl font-black tracking-tight"
+        >
+          <img
+            src="/favicon.svg"
+            alt=""
+            width="48"
+            height="48"
+            className="size-10 shrink-0 sm:size-12"
+          />
+          <span>
+            Guestwall<span className="text-rust">.</span>
+          </span>
         </a>
         <a
           href="https://github.com/egekocabas/guest-wall"
