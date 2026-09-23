@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 describe("photo title", () => {
-  it("plays the photo scene once, including in React Strict Mode", () => {
+  it("repeats the photo scene after exactly 20 seconds, including in React Strict Mode", () => {
     const { rerender } = renderHook(() => usePhotoTitle(true), { wrapper: StrictMode });
     expect(document.title).toBe("Guestwall");
     act(() => vi.advanceTimersByTime(1800));
@@ -30,10 +30,17 @@ describe("photo title", () => {
     rerender();
     act(() => vi.advanceTimersByTime(3300));
     expect(document.title).toBe("___(^_^)[*](^_^)___");
-    act(() => vi.runAllTimers());
+    act(() => vi.advanceTimersByTime(3450));
     expect(document.title).toBe("Guestwall");
-    document.dispatchEvent(new Event("visibilitychange"));
-    expect(vi.getTimerCount()).toBe(0);
+    act(() => vi.advanceTimersByTime(19_999));
+    expect(document.title).toBe("Guestwall");
+    act(() => vi.advanceTimersByTime(1));
+    expect(document.title).toBe("(o_o)___[o]___(o_o)");
+    act(() => vi.advanceTimersByTime(6750));
+    expect(document.title).toBe("Guestwall");
+    act(() => vi.advanceTimersByTime(20_000));
+    expect(document.title).toBe("(o_o)___[o]___(o_o)");
+    expect(vi.getTimerCount()).toBe(1);
   });
 
   it("pauses while hidden and restores the title and timers on unmount", () => {
@@ -61,6 +68,24 @@ describe("photo title", () => {
     rerender({ enabled: true });
     expect(vi.getTimerCount()).toBe(0);
     expect(document.title).toBe("Guestwall");
+  });
+
+  it("does not restart in a hidden tab or after unmounting during the repeat delay", () => {
+    const { unmount } = renderHook(() => usePhotoTitle(true));
+    act(() => vi.advanceTimersByTime(8550));
+    vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+    document.dispatchEvent(new Event("visibilitychange"));
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(document.title).toBe("Guestwall");
+    expect(vi.getTimerCount()).toBe(0);
+    vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(document.title).toBe("Guestwall");
+    expect(vi.getTimerCount()).toBe(1);
+    unmount();
+    act(() => vi.advanceTimersByTime(20_000));
+    expect(document.title).toBe("Guestwall");
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("stops immediately if reduced motion is enabled during the scene", () => {

@@ -13,6 +13,7 @@ const frames: readonly (readonly [string, number])[] = [
   ["_(o_o)__[o]__(o_o)_", 550],
   ["(o_o)___[o]___(o_o)", 550],
   ["________[o]________", 650],
+  ["Guestwall", 20_000],
 ];
 
 export function usePhotoTitle(enabled: boolean) {
@@ -36,8 +37,8 @@ export function usePhotoTitle(enabled: boolean) {
       document.title = title;
       timer = window.setTimeout(() => {
         frameIndex += 1;
-        if (frameIndex === frames.length) pause();
-        else playFrame();
+        if (frameIndex === frames.length) frameIndex = 1;
+        playFrame();
       }, duration);
     }
 
