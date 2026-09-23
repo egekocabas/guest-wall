@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 describe("photo title", () => {
-  it("repeats the photo scene after exactly 20 seconds, including in React Strict Mode", () => {
+  it("repeats the photo scene after exactly 5 seconds, including in React Strict Mode", () => {
     const { rerender } = renderHook(() => usePhotoTitle(true), { wrapper: StrictMode });
     expect(document.title).toBe("Guestwall");
     act(() => vi.advanceTimersByTime(1800));
@@ -32,13 +32,13 @@ describe("photo title", () => {
     expect(document.title).toBe("___(^_^)[*](^_^)___");
     act(() => vi.advanceTimersByTime(3450));
     expect(document.title).toBe("Guestwall");
-    act(() => vi.advanceTimersByTime(19_999));
+    act(() => vi.advanceTimersByTime(4_999));
     expect(document.title).toBe("Guestwall");
     act(() => vi.advanceTimersByTime(1));
     expect(document.title).toBe("(o_o)___[o]___(o_o)");
     act(() => vi.advanceTimersByTime(6750));
     expect(document.title).toBe("Guestwall");
-    act(() => vi.advanceTimersByTime(20_000));
+    act(() => vi.advanceTimersByTime(5_000));
     expect(document.title).toBe("(o_o)___[o]___(o_o)");
     expect(vi.getTimerCount()).toBe(1);
   });
@@ -83,7 +83,7 @@ describe("photo title", () => {
     expect(document.title).toBe("Guestwall");
     expect(vi.getTimerCount()).toBe(1);
     unmount();
-    act(() => vi.advanceTimersByTime(20_000));
+    act(() => vi.advanceTimersByTime(5_000));
     expect(document.title).toBe("Guestwall");
     expect(vi.getTimerCount()).toBe(0);
   });

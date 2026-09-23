@@ -13,7 +13,7 @@ const frames: readonly (readonly [string, number])[] = [
   ["_(o_o)__[o]__(o_o)_", 550],
   ["(o_o)___[o]___(o_o)", 550],
   ["________[o]________", 650],
-  ["Guestwall", 20_000],
+  ["Guestwall", 5_000],
 ];
 
 export function usePhotoTitle(enabled: boolean) {
