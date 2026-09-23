@@ -2,6 +2,21 @@
   "name": "guestwall-frontend",
   "private": true,
   "version": "0.1.0",
+  "description": "Frontend for the self-hosted Guestwall thermal photo wall",
+  "license": "MIT",
+  "author": {
+    "name": "Ege Kocabas",
+    "url": "https://github.com/egekocabas"
+  },
+  "homepage": "https://github.com/egekocabas/guest-wall#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egekocabas/guest-wall.git",
+    "directory": "frontend"
+  },
+  "bugs": {
+    "url": "https://github.com/egekocabas/guest-wall/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
