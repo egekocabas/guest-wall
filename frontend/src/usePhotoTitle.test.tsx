@@ -26,27 +26,27 @@ describe("photo title", () => {
     const { rerender } = renderHook(() => usePhotoTitle(true), { wrapper: StrictMode });
     expect(document.title).toBe("Guestwall");
     act(() => vi.advanceTimersByTime(1800));
-    expect(document.title).toBe("(o_o)___[o]___(o_o)");
+    expect(document.title).toBe("(o_o)___📷___(o_o)");
     rerender();
     act(() => vi.advanceTimersByTime(3300));
-    expect(document.title).toBe("___(^_^)[*](^_^)___");
+    expect(document.title).toBe("___(^_^)📸(^_^)___");
     act(() => vi.advanceTimersByTime(3450));
     expect(document.title).toBe("Guestwall");
     act(() => vi.advanceTimersByTime(4_999));
     expect(document.title).toBe("Guestwall");
     act(() => vi.advanceTimersByTime(1));
-    expect(document.title).toBe("(o_o)___[o]___(o_o)");
+    expect(document.title).toBe("(o_o)___📷___(o_o)");
     act(() => vi.advanceTimersByTime(6750));
     expect(document.title).toBe("Guestwall");
     act(() => vi.advanceTimersByTime(5_000));
-    expect(document.title).toBe("(o_o)___[o]___(o_o)");
+    expect(document.title).toBe("(o_o)___📷___(o_o)");
     expect(vi.getTimerCount()).toBe(1);
   });
 
   it("restarts from the beginning after switching tabs and clears timers on unmount", () => {
     const { unmount } = renderHook(() => usePhotoTitle(true));
     act(() => vi.advanceTimersByTime(5100));
-    expect(document.title).toBe("___(^_^)[*](^_^)___");
+    expect(document.title).toBe("___(^_^)📸(^_^)___");
     vi.spyOn(document, "hidden", "get").mockReturnValue(true);
     document.dispatchEvent(new Event("visibilitychange"));
     expect(document.title).toBe("Guestwall");
@@ -57,7 +57,7 @@ describe("photo title", () => {
     act(() => vi.advanceTimersByTime(1799));
     expect(document.title).toBe("Guestwall");
     act(() => vi.advanceTimersByTime(1));
-    expect(document.title).toBe("(o_o)___[o]___(o_o)");
+    expect(document.title).toBe("(o_o)___📷___(o_o)");
     expect(vi.getTimerCount()).toBe(1);
     unmount();
     expect(document.title).toBe("Guestwall");
@@ -89,7 +89,7 @@ describe("photo title", () => {
     expect(document.title).toBe("Guestwall");
     expect(vi.getTimerCount()).toBe(1);
     act(() => vi.advanceTimersByTime(1800));
-    expect(document.title).toBe("(o_o)___[o]___(o_o)");
+    expect(document.title).toBe("(o_o)___📷___(o_o)");
     unmount();
     act(() => vi.advanceTimersByTime(5_000));
     expect(document.title).toBe("Guestwall");
