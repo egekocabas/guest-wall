@@ -36,9 +36,7 @@ export function App({ modeOverride }: { modeOverride?: AppMode }) {
             height="48"
             className="size-10 shrink-0 sm:size-12"
           />
-          <span>
-            Guestwall<span className="text-rust">.</span>
-          </span>
+          <span>Guestwall</span>
         </a>
         <a
           href="https://github.com/egekocabas/guest-wall"
