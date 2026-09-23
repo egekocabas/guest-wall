@@ -1,8 +1,8 @@
 # Guestwall logo
 
-`guestwall-logo.svg` is the original supplied artwork, preserved without modifications.
+`docs/branding/guestwall-logo.svg` is the original supplied artwork, preserved without modifications.
 
-`../../frontend/public/favicon.svg` is the optimized web copy used by the homepage header and
+`frontend/public/favicon.svg` is the optimized web copy used by the homepage header and
 browser favicon. It keeps the vector artwork and uses a tighter square viewBox (`212 174 890 890`)
 to remove excess transparent margins at small display sizes. Both uses share `/favicon.svg`.
 
