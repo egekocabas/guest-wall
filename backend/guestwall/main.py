@@ -150,6 +150,15 @@ def create_app(
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=assets), name="assets")
 
+    @app.api_route("/favicon.svg", methods=["GET", "HEAD"], include_in_schema=False)
+    def favicon() -> Response:
+        favicon_file = static_root / "favicon.svg"
+        if not favicon_file.is_file():
+            return Response(status_code=404)
+        return FileResponse(
+            favicon_file, media_type="image/svg+xml", headers={"Cache-Control": "no-cache"}
+        )
+
     @app.api_route("/robots.txt", methods=["GET", "HEAD"], include_in_schema=False)
     def robots() -> Response:
         robots_file = static_root / "robots.txt"
