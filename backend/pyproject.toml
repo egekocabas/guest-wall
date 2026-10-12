@@ -11,12 +11,12 @@ authors = [{ name = "Ege Kocabas" }]
 requires-python = ">=3.12"
 dependencies = [
   "alembic==1.20.0",
-  "fastapi==0.142.2",
+  "fastapi==0.143.0",
   "httpx==0.28.1",
   "prometheus-client==0.26.0",
   "pydantic-settings==2.15.0",
   "python-multipart==0.0.32",
-  "sqlalchemy==2.1.1",
+  "sqlalchemy==2.1.4",
   "uvicorn[standard]==0.54.0",
 ]
 
