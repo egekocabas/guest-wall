@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-os.environ.setdefault("DATA_DIR", tempfile.mkdtemp(prefix="guestwall-import-"))
+_import_data = tempfile.TemporaryDirectory(prefix="guestwall-import-")
+os.environ.setdefault("DATA_DIR", _import_data.name)
 
 from guestwall.config import Settings  # noqa: E402
 from guestwall.main import create_app  # noqa: E402
@@ -17,18 +18,22 @@ from guestwall.printer import (  # noqa: E402
     PrinterHardwareStatus,
 )
 
-PNG = b"\x89PNG\r\n\x1a\n"
-EXACT = PNG + b"exact-print-raster"
-ENHANCED = PNG + b"enhanced-thermal-preview"
+from .image_helpers import image_bytes  # noqa: E402
+
+EXACT = image_bytes("1")
+ENHANCED = image_bytes("L")
+ORIGINAL = image_bytes()
 
 
 class MockPrinter:
     def __init__(self) -> None:
         self.preview_inputs: list[bytes] = []
+        self.preview_content_types: list[str] = []
         self.preview_captions: list[tuple[str | None, str | None]] = []
         self.print_inputs: list[bytes] = []
         self.fail_print = False
         self.ambiguous_print = False
+        self.prepared = PreparedImages(exact_print=EXACT, enhanced_preview=ENHANCED)
         self.printer_status = PrinterAgentStatus(
             reachable=True,
             hardware_status=PrinterHardwareStatus.READY,
@@ -42,8 +47,9 @@ class MockPrinter:
         time: str | None = None,
     ) -> PreparedImages:
         self.preview_inputs.append(image)
+        self.preview_content_types.append(content_type)
         self.preview_captions.append((date, time))
-        return PreparedImages(exact_print=EXACT, enhanced_preview=ENHANCED)
+        return self.prepared
 
     async def print_prepared(self, image: bytes) -> None:
         self.print_inputs.append(image)
@@ -64,9 +70,16 @@ def printer() -> MockPrinter:
     return MockPrinter()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def clean_import_data() -> Iterator[None]:
+    yield
+    _import_data.cleanup()
+
+
 @pytest.fixture
-def data_dir(tmp_path: Path) -> Path:
-    return tmp_path / "data"
+def data_dir(tmp_path: Path) -> Iterator[Path]:
+    with tempfile.TemporaryDirectory(prefix="storage-", dir=tmp_path) as directory:
+        yield Path(directory) / "data"
 
 
 @pytest.fixture
@@ -89,7 +102,7 @@ def client(settings: Settings, printer: MockPrinter) -> Iterator[TestClient]:
 
 @pytest.fixture
 def create_preview(client: TestClient):
-    def create(content: bytes = b"private original bytes") -> str:
+    def create(content: bytes = ORIGINAL) -> str:
         response = client.post(
             "/api/previews",
             files={"image": ("phone.heic", content, "image/heic")},

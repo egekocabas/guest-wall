@@ -2,6 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from PIL import Image
 from sqlalchemy import select
 
 from guestwall.config import Settings
@@ -9,7 +10,8 @@ from guestwall.main import create_app
 from guestwall.models import Photo, PreviewSession, utcnow
 from guestwall.printer import PrinterAgentStatus, PrinterHardwareStatus
 
-from .conftest import ENHANCED, EXACT, MockPrinter
+from .conftest import ENHANCED, EXACT, ORIGINAL, MockPrinter
+from .image_helpers import image_bytes
 
 
 def confirm(
@@ -46,9 +48,12 @@ def test_preview_keeps_only_prepared_outputs(
     data_dir: Path,
     printer: MockPrinter,
 ) -> None:
-    original = b"unique original phone image with exif and gps"
+    exif = Image.Exif()
+    exif[315] = "unique original phone metadata"
+    original = image_bytes(exif=exif)
     preview_id = create_preview(original)
-    assert printer.preview_inputs == [original]
+    assert printer.preview_inputs == [ORIGINAL]
+    assert printer.preview_content_types == ["image/png"]
     assert client.get(f"/api/previews/{preview_id}/image").content == ENHANCED
     assert (data_dir / "previews" / preview_id / "preview.png").read_bytes() == ENHANCED
     assert (data_dir / "previews" / preview_id / "print.png").read_bytes() == EXACT
@@ -63,7 +68,7 @@ def test_preview_keeps_only_prepared_outputs(
 def test_preview_forwards_optional_caption(client: TestClient, printer: MockPrinter) -> None:
     response = client.post(
         "/api/previews",
-        files={"image": ("phone.jpg", b"original", "image/jpeg")},
+        files={"image": ("phone.png", ORIGINAL, "image/png")},
         data={"date": "24/08/2026", "time": "18:34"},
     )
     assert response.status_code == 201
@@ -148,7 +153,7 @@ def test_public_boundary_does_not_list_or_serve_private_photo(
 
 
 def test_wall_paginates_newest_photos_first(client: TestClient, create_preview) -> None:
-    photo_ids = [create_preview(bytes([index])) for index in range(3)]
+    photo_ids = [create_preview() for _ in range(3)]
     for photo_id in photo_ids:
         assert confirm(client, photo_id, print_photo=False).status_code == 200
 
@@ -249,7 +254,7 @@ def test_database_and_images_survive_application_restart(
     first_app = create_app(settings, printer, auto_create_schema=True)  # type: ignore[arg-type]
     with TestClient(first_app) as first:
         response = first.post(
-            "/api/previews", files={"image": ("phone.jpg", b"original", "image/jpeg")}
+            "/api/previews", files={"image": ("phone.png", ORIGINAL, "image/png")}
         )
         photo_id = response.json()["preview_id"]
         assert confirm(first, photo_id).status_code == 200

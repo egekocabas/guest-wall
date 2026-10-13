@@ -40,6 +40,18 @@ Ingress and NetworkPolicy are disabled in the chart defaults. Enabling LAN ingre
 one Basic Auth secret or middleware reference fails template rendering. The example values enable
 both ingress and NetworkPolicy with documentation-only hosts and addresses.
 
+### Large-photo uploads
+
+The defaults accept files up to 50 MiB and photos up to 100 MP, including 48 MP JPEG/HEIC uploads.
+Existing environment variables, ConfigMaps, and Helm value overrides still take precedence over
+new application defaults. When upgrading an existing deployment, use `MAX_UPLOAD_BYTES=52428800`
+and `MAX_IMAGE_PIXELS=100000000` (Helm: `app.maxUploadBytes` and `app.maxImagePixels`), and allow
+`resources.limits.memory: 2Gi` for decoding large photos. The chart already uses these defaults.
+
+Guestwall reduces only the sanitized copy sent to printer-agent, to at most 2048 pixels per side.
+No printer-agent configuration change is needed. Application uploads remain in memory rather than
+spooling original photos to disk.
+
 ## Ingress model
 
 The LAN Ingress provides the guest application and gallery. Admin paths receive a separate,

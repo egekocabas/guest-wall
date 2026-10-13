@@ -4,18 +4,16 @@ from typing import cast
 from fastapi import (
     APIRouter,
     Depends,
-    File,
-    Form,
     Header,
     Query,
     Request,
     Response,
-    UploadFile,
     status,
 )
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from guestwall.api.uploads import read_photo_upload
 from guestwall.models import Photo, Visibility
 from guestwall.printer import PrinterAgentError
 from guestwall.schemas import (
@@ -52,23 +50,42 @@ def photo_view(photo: Photo, image_prefix: str) -> PhotoView:
     )
 
 
-@router.post("/api/previews", response_model=PreviewCreated, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/api/previews",
+    response_model=PreviewCreated,
+    status_code=status.HTTP_201_CREATED,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "required": ["image"],
+                        "properties": {
+                            "image": {"type": "string", "format": "binary"},
+                            "date": {"type": "string"},
+                            "time": {"type": "string"},
+                        },
+                    }
+                }
+            },
+        }
+    },
+)
 async def create_preview(
     request: Request,
-    image: UploadFile = File(...),
-    date: str | None = Form(None),
-    time: str | None = Form(None),
     session: Session = Depends(get_session),
     service: GuestwallService = Depends(get_service),
 ) -> PreviewCreated:
     limit = request.app.state.settings.max_upload_bytes
-    original = await image.read(limit + 1)
+    upload = await read_photo_upload(request, limit)
     record = await service.create_preview(
         session,
-        original,
-        image.content_type or "application/octet-stream",
-        date,
-        time,
+        upload.image,
+        upload.content_type,
+        upload.date,
+        upload.time,
     )
     return PreviewCreated(
         preview_id=record.id,

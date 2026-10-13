@@ -24,6 +24,7 @@
     "app": {
       "type": "object",
       "properties": {
+        "maxImagePixels": { "type": "integer", "minimum": 1 },
         "publicUrl": { "type": "string", "pattern": "^$|^https?://" },
         "homeUrl": { "type": "string", "pattern": "^$|^https?://" }
       }
