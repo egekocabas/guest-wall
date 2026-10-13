@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-os.environ.setdefault("DATA_DIR", tempfile.mkdtemp(prefix="guestwall-import-"))
+_import_data = tempfile.TemporaryDirectory(prefix="guestwall-import-")
+os.environ.setdefault("DATA_DIR", _import_data.name)
 
 from guestwall.config import Settings  # noqa: E402
 from guestwall.main import create_app  # noqa: E402
@@ -69,9 +70,16 @@ def printer() -> MockPrinter:
     return MockPrinter()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def clean_import_data() -> Iterator[None]:
+    yield
+    _import_data.cleanup()
+
+
 @pytest.fixture
-def data_dir(tmp_path: Path) -> Path:
-    return tmp_path / "data"
+def data_dir(tmp_path: Path) -> Iterator[Path]:
+    with tempfile.TemporaryDirectory(prefix="storage-", dir=tmp_path) as directory:
+        yield Path(directory) / "data"
 
 
 @pytest.fixture

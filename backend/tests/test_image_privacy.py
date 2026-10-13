@@ -31,7 +31,7 @@ def private_exif(*, orientation: int = 1) -> Image.Exif:
     return exif
 
 
-def private_png(mode: str = "RGB") -> bytes:
+def private_png(mode: str = "RGB", *, size: tuple[int, int] = (24, 16)) -> bytes:
     info = PngImagePlugin.PngInfo()
     info.add_text("Comment", PRIVATE_MARKER.decode())
     info.add_text("compressed", PRIVATE_MARKER.decode(), zip=True)
@@ -40,6 +40,7 @@ def private_png(mode: str = "RGB") -> bytes:
     return (
         image_bytes(
             mode,
+            size=size,
             exif=private_exif(),
             pnginfo=info,
             icc_profile=ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes(),
@@ -71,46 +72,66 @@ def sanitize(data: bytes, *, prepared: bool = False) -> tuple[bytes, str]:
 
 
 @pytest.mark.parametrize("format", ["JPEG", "PNG", "WEBP", "HEIF", "AVIF"])
-def test_uploads_strip_exif_gps_and_preserve_orientation(format: str) -> None:
-    source = image_bytes(format=format, exif=private_exif(orientation=6))
+@pytest.mark.parametrize("size", [(1, 1), (24, 16), (640, 480)])
+@pytest.mark.parametrize("with_metadata", [False, True], ids=["plain", "metadata"])
+def test_uploads_strip_exif_gps_and_preserve_orientation(
+    format: str, size: tuple[int, int], with_metadata: bool
+) -> None:
+    options = {"exif": private_exif(orientation=6)} if with_metadata else {}
+    source = image_bytes(format=format, size=size, **options)
     with Image.open(io.BytesIO(source)) as image:
-        assert image.getexif().get_ifd(34853)
+        assert bool(image.getexif().get_ifd(34853)) == with_metadata
     result, mime = sanitize(source)
     assert PRIVATE_MARKER not in result
     with Image.open(io.BytesIO(result)) as image:
-        assert image.size == (16, 24)
+        assert image.size == (size[::-1] if with_metadata else size)
         assert not image.getexif()
         assert not set(image.info) & {"exif", "xmp", "icc_profile", "comment"}
     assert mime == ("image/png" if format == "PNG" else "image/jpeg")
 
 
 @pytest.mark.parametrize("format", ["JPEG", "HEIF"])
-def test_default_limits_accept_48mp_phone_photos(
-    client: TestClient, printer: MockPrinter, format: str
+@pytest.mark.parametrize("size", [(4032, 3024), (8064, 6048)], ids=["12mp", "48mp"])
+@pytest.mark.parametrize("with_metadata", [False, True], ids=["plain", "metadata"])
+def test_default_limits_accept_phone_photos(
+    client: TestClient,
+    printer: MockPrinter,
+    format: str,
+    size: tuple[int, int],
+    with_metadata: bool,
 ) -> None:
-    source = image_bytes(format=format, size=(8064, 6048), exif=private_exif(orientation=6))
+    options = {"exif": private_exif(orientation=6)} if with_metadata else {}
+    source = image_bytes(format=format, size=size, **options)
     response = client.post(
         "/api/previews", files={"image": ("phone", source, f"image/{format.lower()}")}
     )
     assert response.status_code == 201, response.text
     with Image.open(io.BytesIO(printer.preview_inputs[0])) as forwarded:
-        assert forwarded.size == (1536, 2048)
+        assert forwarded.size == ((1536, 2048) if with_metadata else (2048, 1536))
         assert not forwarded.getexif()
+        assert not set(forwarded.info) & {"exif", "xmp", "icc_profile", "comment"}
     assert len(printer.preview_inputs[0]) < 25 * 1024 * 1024
     assert PRIVATE_MARKER not in printer.preview_inputs[0]
 
 
-def test_default_limits_accept_100mp_above_pillow_warning_threshold() -> None:
+@pytest.mark.parametrize("format", ["JPEG", "PNG"])
+@pytest.mark.parametrize("with_metadata", [False, True], ids=["plain", "metadata"])
+def test_default_limits_accept_100mp_above_pillow_warning_threshold(
+    format: str, with_metadata: bool
+) -> None:
     settings = Settings()
     assert settings.max_image_pixels == 100_000_000
-    source = image_bytes(format="JPEG", size=(10000, 10000), exif=private_exif())
+    options = {"exif": private_exif()} if with_metadata else {}
+    source = image_bytes(format=format, size=(10000, 10000), **options)
     result, mime = sanitize_image(
         source, max_pixels=settings.max_image_pixels, max_bytes=settings.max_upload_bytes
     )
-    assert mime == "image/jpeg"
+    assert mime == ("image/png" if format == "PNG" else "image/jpeg")
     with Image.open(io.BytesIO(result)) as image:
         assert image.size == (2048, 2048)
         assert not image.getexif()
+        assert not set(image.info) & {"exif", "xmp", "icc_profile", "comment"}
+    assert PRIVATE_MARKER not in result
     assert len(result) < 25 * 1024 * 1024
 
 
@@ -135,8 +156,12 @@ def test_default_50_mib_file_limit(
 
 
 @pytest.mark.parametrize("mode", ["1", "L", "RGB", "RGBA"])
-def test_prepared_pngs_lose_all_metadata_without_changing_pixels(mode: str) -> None:
-    source = private_png(mode)
+@pytest.mark.parametrize("size", [(24, 16), (384, 512)])
+@pytest.mark.parametrize("with_metadata", [False, True], ids=["plain", "metadata"])
+def test_prepared_pngs_lose_all_metadata_without_changing_pixels(
+    mode: str, size: tuple[int, int], with_metadata: bool
+) -> None:
+    source = private_png(mode, size=size) if with_metadata else image_bytes(mode, size=size)
     result, mime = sanitize(source, prepared=True)
     assert mime == "image/png"
     assert_clean_png(result)

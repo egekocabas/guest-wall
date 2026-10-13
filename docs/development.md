@@ -62,3 +62,9 @@ cd frontend && npm run build
 helm lint chart/guest-wall
 docker build -t guestwall:local .
 ```
+
+Image privacy tests generate their source images in memory, with and without EXIF/GPS metadata.
+They cover JPEG, PNG, WebP, HEIF and AVIF, including 12/48 MP JPEG and HEIF uploads and 100 MP
+JPEG and PNG normalization. Storage integration tests use temporary directories that are removed
+after each test, even on failure; the import-time application directory is removed at session end.
+The fixtures are synthetic images, not a collection of real phone-camera files.
