@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.responses import Response
 
 from guestwall.api import router
+from guestwall.api.uploads import MULTIPART_OVERHEAD_BYTES
 from guestwall.config import Settings, get_settings
 from guestwall.database import Database, check_database
 from guestwall.logging_config import configure_logging
@@ -87,7 +88,7 @@ def create_app(
             and path == "/api/previews"
             and content_length is not None
             and content_length.isdigit()
-            and int(content_length) > resolved_settings.max_upload_bytes + 65536
+            and int(content_length) > resolved_settings.max_upload_bytes + MULTIPART_OVERHEAD_BYTES
         )
         if upload_too_large:
             response = JSONResponse(

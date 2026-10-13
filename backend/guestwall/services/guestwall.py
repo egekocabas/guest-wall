@@ -7,8 +7,10 @@ from uuid import uuid4
 from sqlalchemy import func, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from guestwall.config import Settings
+from guestwall.images import ImageTooLarge, InvalidImage, sanitize_image
 from guestwall.metrics import (
     PHOTOS,
     PREVIEW_REQUESTS,
@@ -69,16 +71,55 @@ class GuestwallService:
         self._validate_caption(date, time)
 
         try:
+            image, content_type = await run_in_threadpool(
+                sanitize_image,
+                image,
+                max_pixels=self.settings.max_image_pixels,
+                max_bytes=self.settings.max_upload_bytes,
+            )
+        except ImageTooLarge as exc:
+            raise ServiceError(
+                413, "This photo is too large. Choose a smaller one.", "upload_too_large"
+            ) from exc
+        except InvalidImage as exc:
+            raise ServiceError(
+                415, "Choose a valid JPEG, PNG, WebP, HEIC, or AVIF photo.", "invalid_image"
+            ) from exc
+
+        try:
             prepared = await self.printer.preview(image, content_type, date, time)
         except PrinterAgentError as exc:
             raise ServiceError(503, str(exc), exc.code, retryable=exc.retryable) from exc
+
+        try:
+            preview, _ = await run_in_threadpool(
+                sanitize_image,
+                prepared.enhanced_preview,
+                max_pixels=self.settings.max_image_pixels,
+                max_bytes=self.settings.max_upload_bytes,
+                prepared=True,
+            )
+            exact_print, _ = await run_in_threadpool(
+                sanitize_image,
+                prepared.exact_print,
+                max_pixels=self.settings.max_image_pixels,
+                max_bytes=self.settings.max_upload_bytes,
+                prepared=True,
+            )
+        except InvalidImage as exc:
+            raise ServiceError(
+                503,
+                "The printer service returned an invalid preview.",
+                "invalid_printer_response",
+                retryable=True,
+            ) from exc
 
         preview_id = str(uuid4())
         try:
             preview_path, print_path = self.storage.write_preview(
                 preview_id,
-                prepared.enhanced_preview,
-                prepared.exact_print,
+                preview,
+                exact_print,
             )
             record = PreviewSession(
                 id=preview_id,

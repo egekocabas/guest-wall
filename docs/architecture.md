@@ -39,9 +39,27 @@ The upstream endpoint definitions and validation rules are documented in the
 The browser sends the selected file to `POST /api/previews` and keeps it in the active tab. Date,
 time, and mirrored variants are prepared separately and cached in the browser.
 
-Guestwall bounds the upload, sends it to `printer-agent`, and stores `preview.png` and `print.png`
-under `/data/previews/<uuid>/`. The original photo, including EXIF and GPS metadata, is never
-written to persistent storage. Temporary files and abandoned previews are cleaned up.
+Guestwall parses uploads in bounded memory without temporary-file rollover. The byte limit is
+enforced while reading the request, including requests without a truthful `Content-Length`.
+Original bytes exist only in request memory; they are not written to application storage or sent
+to `printer-agent`.
+
+Before forwarding, Guestwall decodes the image, applies orientation and valid color profiles, and
+rebuilds it from pixels. PNG uploads and transparent images become PNG; other photos become
+quality-95 JPEG. Only the first frame is used. Source EXIF/GPS, XMP, ICC, comments, thumbnails,
+private chunks, and trailing data are discarded. This normalization may re-encode lossy photos;
+it does not add source capture dates to the user-selected caption.
+
+Guestwall also rebuilds both returned PNGs before storing `preview.png` and `print.png` under
+`/data/previews/<uuid>/`. Exact monochrome print pixels remain unchanged. Invalid or oversized
+images fail before forwarding or storage, rather than falling back to the original bytes.
+The default limits are 20 MiB for each uploaded/encoded image and 25 million decoded pixels;
+increase `MAX_IMAGE_PIXELS` only with sufficient process memory. Image work runs off the event loop.
+
+This protects newly created previews and photos; it does not rewrite older stored files. Browser
+memory still contains the selected original until the guest resets the flow or closes the tab.
+Abandoned sanitized previews are cleaned up. Any upstream proxy buffering, host swap, or backups
+are deployment concerns outside the application's in-memory upload guarantee.
 
 Confirmation atomically promotes the selected preview to `/data/photos/<uuid>/` and creates the
 photo record. Repeated confirmations return the same photo, and unused variants are deleted. Photos

@@ -20,6 +20,7 @@ app:
   publicUrl: ""
   homeUrl: ""
   maxUploadBytes: 20971520
+  maxImagePixels: 25000000
   previewTtlSeconds: 3600
   cleanupIntervalSeconds: 900
   logLevel: INFO
