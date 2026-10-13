@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     database_url: str | None = None
     printer_agent_url: str = "http://localhost:8001"
     printer_timeout_seconds: float = Field(default=30, gt=0, le=120)
-    max_upload_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
-    max_image_pixels: int = Field(default=25_000_000, gt=0)
+    max_upload_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
+    max_image_pixels: int = Field(default=100_000_000, gt=0)
     preview_ttl_seconds: int = Field(default=60 * 60, ge=60)
     preview_cleanup_interval_seconds: int = Field(default=15 * 60, ge=10)
     public_host: str = "guest-wall.egekocabas.com"

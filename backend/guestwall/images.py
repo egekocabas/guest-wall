@@ -11,6 +11,9 @@ register_heif_opener(thumbnails=False)
 
 # MPO is opened by Pillow's JPEG decoder, not a separately registered opener.
 UPLOAD_FORMATS = ("JPEG", "PNG", "WEBP", "HEIF", "AVIF")
+# At most 2048² RGBA pixels also fit comfortably within printer-agent's
+# existing 25 MiB / 50 MP input bounds, even as an uncompressible PNG.
+MAX_FORWARD_DIMENSION = 2048
 
 
 class InvalidImage(ValueError):
@@ -46,7 +49,9 @@ def sanitize_image(
     """
     try:
         with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            # Pillow warns at ~89 MP. The configured limit below is the upload
+            # policy, so its warning must not reject valid 89–100 MP photos.
+            warnings.simplefilter("ignore", Image.DecompressionBombWarning)
             with Image.open(
                 io.BytesIO(data), formats=("PNG",) if prepared else UPLOAD_FORMATS
             ) as image:
@@ -54,6 +59,13 @@ def sanitize_image(
                     raise ImageTooLarge("Image exceeds the pixel limit")
                 if prepared and getattr(image, "is_animated", False):
                     raise InvalidImage("Prepared PNG must contain one frame")
+                if not prepared:
+                    # The wall/print is a small thermal raster. Reduce the copy
+                    # sent downstream, without imposing another upload limit.
+                    # JPEG draft decoding can also avoid a full-size buffer.
+                    image.thumbnail(
+                        (MAX_FORWARD_DIMENSION, MAX_FORWARD_DIMENSION), Image.Resampling.LANCZOS
+                    )
                 image.load()
                 source_format = image.format
                 if not prepared:
@@ -72,18 +84,22 @@ def sanitize_image(
                     mode = "L"
                 # A fresh pixel-only image discards EXIF, XMP, ICC, comments,
                 # thumbnails, PNG text/private chunks, and appended payloads.
-                with Image.new(mode, image.size) as clean:
-                    working = image.convert(mode)
+                working = image if image.mode == mode else image.convert(mode)
+                if working is not image:
+                    image.close()
+                with Image.new(mode, working.size) as clean:
                     try:
                         if (
                             not prepared
-                            and image.info.get("icc_profile")
+                            and working.info.get("icc_profile")
                             and mode in {"RGB", "RGBA"}
                         ):
                             try:
                                 ImageCms.profileToProfile(
                                     working,
-                                    ImageCms.ImageCmsProfile(io.BytesIO(image.info["icc_profile"])),
+                                    ImageCms.ImageCmsProfile(
+                                        io.BytesIO(working.info["icc_profile"])
+                                    ),
                                     ImageCms.createProfile("sRGB"),
                                     inPlace=True,
                                 )

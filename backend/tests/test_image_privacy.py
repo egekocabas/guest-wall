@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from PIL import Image, ImageCms, ImageOps, PngImagePlugin
 from PIL.TiffImagePlugin import IFDRational
 
+from guestwall.config import Settings
 from guestwall.images import ImageTooLarge, InvalidImage, sanitize_image
 from guestwall.printer import PreparedImages
 
@@ -81,6 +82,56 @@ def test_uploads_strip_exif_gps_and_preserve_orientation(format: str) -> None:
         assert not image.getexif()
         assert not set(image.info) & {"exif", "xmp", "icc_profile", "comment"}
     assert mime == ("image/png" if format == "PNG" else "image/jpeg")
+
+
+@pytest.mark.parametrize("format", ["JPEG", "HEIF"])
+def test_default_limits_accept_48mp_phone_photos(
+    client: TestClient, printer: MockPrinter, format: str
+) -> None:
+    source = image_bytes(format=format, size=(8064, 6048), exif=private_exif(orientation=6))
+    response = client.post(
+        "/api/previews", files={"image": ("phone", source, f"image/{format.lower()}")}
+    )
+    assert response.status_code == 201, response.text
+    with Image.open(io.BytesIO(printer.preview_inputs[0])) as forwarded:
+        assert forwarded.size == (1536, 2048)
+        assert not forwarded.getexif()
+    assert len(printer.preview_inputs[0]) < 25 * 1024 * 1024
+    assert PRIVATE_MARKER not in printer.preview_inputs[0]
+
+
+def test_default_limits_accept_100mp_above_pillow_warning_threshold() -> None:
+    settings = Settings()
+    assert settings.max_image_pixels == 100_000_000
+    source = image_bytes(format="JPEG", size=(10000, 10000), exif=private_exif())
+    result, mime = sanitize_image(
+        source, max_pixels=settings.max_image_pixels, max_bytes=settings.max_upload_bytes
+    )
+    assert mime == "image/jpeg"
+    with Image.open(io.BytesIO(result)) as image:
+        assert image.size == (2048, 2048)
+        assert not image.getexif()
+    assert len(result) < 25 * 1024 * 1024
+
+
+@pytest.mark.parametrize("extra_byte", [0, 1])
+def test_default_50_mib_file_limit(
+    client: TestClient, printer: MockPrinter, monkeypatch: pytest.MonkeyPatch, extra_byte: int
+) -> None:
+    limit = client.app.state.settings.max_upload_bytes
+    assert limit == 50 * 1024 * 1024
+
+    def no_disk(*_args, **_kwargs):
+        pytest.fail("Original upload rolled over to disk")
+
+    monkeypatch.setattr(tempfile.SpooledTemporaryFile, "rollover", no_disk)
+    source = ORIGINAL + b"x" * (limit - len(ORIGINAL) + extra_byte)
+    response = client.post("/api/previews", files={"image": ("photo.png", source, "image/png")})
+    assert response.status_code == (413 if extra_byte else 201), response.text
+    if extra_byte:
+        assert printer.preview_inputs == []
+    else:
+        assert printer.preview_inputs == [ORIGINAL]
 
 
 @pytest.mark.parametrize("mode", ["1", "L", "RGB", "RGBA"])

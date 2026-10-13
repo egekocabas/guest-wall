@@ -19,8 +19,8 @@ app:
   # Absolute destinations printed by admin QR actions. Empty disables the action.
   publicUrl: ""
   homeUrl: ""
-  maxUploadBytes: 20971520
-  maxImagePixels: 25000000
+  maxUploadBytes: 52428800
+  maxImagePixels: 100000000
   previewTtlSeconds: 3600
   cleanupIntervalSeconds: 900
   logLevel: INFO
@@ -84,7 +84,7 @@ resources:
     memory: 128Mi
   limits:
     cpu: 500m
-    memory: 512Mi
+    memory: 2Gi
 
 podAnnotations: {}
 podLabels: {}

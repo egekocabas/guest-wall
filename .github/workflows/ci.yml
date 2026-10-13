@@ -64,5 +64,8 @@ jobs:
           --set admin.basicAuthSecret=guest-wall-admin-basic-auth
           > /tmp/guest-wall-manifests.yaml
       - run: >-
-          grep -Fq 'MAX_UPLOAD_BYTES: "20971520"'
+          grep -Fq 'MAX_UPLOAD_BYTES: "52428800"'
+          /tmp/guest-wall-manifests.yaml
+      - run: >-
+          grep -Fq 'MAX_IMAGE_PIXELS: "100000000"'
           /tmp/guest-wall-manifests.yaml

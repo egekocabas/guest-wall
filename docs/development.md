@@ -38,8 +38,8 @@ it does not run the thermal image pipeline.
 | `DATABASE_URL`                     | derived from `DATA_DIR` | Optional SQLAlchemy override, mainly for tests      |
 | `PRINTER_AGENT_URL`                | `http://localhost:8001` | Backend-only printer-agent base URL                 |
 | `PRINTER_TIMEOUT_SECONDS`          | `30`                    | Per-request printer-agent timeout                   |
-| `MAX_UPLOAD_BYTES`                 | `20971520`              | Maximum upload and sanitized image size (20 MiB)    |
-| `MAX_IMAGE_PIXELS`                 | `25000000`              | Maximum decoded image pixels; bounds sanitizer memory |
+| `MAX_UPLOAD_BYTES`                 | `52428800`              | Maximum upload and sanitized image size (50 MiB)    |
+| `MAX_IMAGE_PIXELS`                 | `100000000`             | Maximum decoded image pixels (100 MP)              |
 | `PREVIEW_TTL_SECONDS`              | `3600`                  | Abandoned preview lifetime                          |
 | `PREVIEW_CLEANUP_INTERVAL_SECONDS` | `900`                   | Cleanup loop interval                               |
 | `PUBLIC_HOST`                      | deployment-specific     | Host receiving defense-in-depth public restrictions |

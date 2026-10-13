@@ -45,16 +45,23 @@ Original bytes exist only in request memory; they are not written to application
 to `printer-agent`.
 
 Before forwarding, Guestwall decodes the image, applies orientation and valid color profiles, and
-rebuilds it from pixels. PNG uploads and transparent images become PNG; other photos become
-quality-95 JPEG. Only the first frame is used. Source EXIF/GPS, XMP, ICC, comments, thumbnails,
+rebuilds it from pixels. The forwarded copy is reduced proportionally to at most 2048 pixels per
+side, without upscaling, so even large uploads fit printer-agent's existing 25 MiB / 50 MP input
+bounds. This remains well above the thermal printer's resolution; prepared print pixels are not
+resized. PNG uploads and transparent images become PNG; other photos become quality-95 JPEG.
+Only the first frame is used. Source EXIF/GPS, XMP, ICC, comments, thumbnails,
 private chunks, and trailing data are discarded. This normalization may re-encode lossy photos;
 it does not add source capture dates to the user-selected caption.
 
 Guestwall also rebuilds both returned PNGs before storing `preview.png` and `print.png` under
 `/data/previews/<uuid>/`. Exact monochrome print pixels remain unchanged. Invalid or oversized
 images fail before forwarding or storage, rather than falling back to the original bytes.
-The default limits are 20 MiB for each uploaded/encoded image and 25 million decoded pixels;
-increase `MAX_IMAGE_PIXELS` only with sufficient process memory. Image work runs off the event loop.
+The defaults are 50 MiB for each uploaded/encoded image and 100 million decoded pixels, allowing
+48 MP phone photos with room for larger images. These are resource bounds for the home-network
+upload flow. Image work runs off the event loop and avoids unnecessary full-resolution copies.
+The Helm chart allows 2 GiB of container memory for large-photo decoding. Deployments with a custom
+memory limit should allow comparable headroom; increasing upload limits alone does not increase
+available process memory.
 
 This protects newly created previews and photos; it does not rewrite older stored files. Browser
 memory still contains the selected original until the guest resets the flow or closes the tab.
